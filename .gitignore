@@ -1,0 +1,17 @@
+build/
+install/
+log/
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+# C++ / build
+*.o
+*.so
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+# ROS
+*.bag
