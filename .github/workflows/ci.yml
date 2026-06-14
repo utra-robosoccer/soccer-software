@@ -1,0 +1,90 @@
+name: ci
+
+# Git holds the recipe; the registry holds the baked cake (blueprint §12).
+# This pipeline builds + lints + tests the ROS 2 workspace and publishes a
+# lean multi-arch runtime image that robots pull via Ansible.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  # ── 1. Build + test the ROS 2 workspace ──
+  ros2-build-test:
+    runs-on: ubuntu-24.04
+    container: ros:jazzy-ros-base
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies (rosdep)
+        run: |
+          apt-get update
+          rosdep update
+          rosdep install --from-paths ros2_ws/src --ignore-src -r -y
+
+      - name: colcon build
+        working-directory: ros2_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          colcon build --symlink-install --event-handlers console_direct+
+
+      - name: colcon test
+        working-directory: ros2_ws
+        run: |
+          . /opt/ros/jazzy/setup.sh
+          . install/setup.sh
+          colcon test --event-handlers console_direct+
+          colcon test-result --verbose
+
+  # ── 2. Python lint (perception / localization / tooling) ──
+  python-lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check ros2_ws/src sim tools
+
+  # ── 3. Firmware build (host unit tests of the 1 kHz control math) ──
+  firmware-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build host-side firmware unit tests
+        working-directory: firmware/motor_controller
+        run: |
+          cmake -S . -B build -DBUILD_HOST_TESTS=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+
+  # ── 4. Build + push lean arm64 runtime image (only on main) ──
+  docker-image:
+    needs: [ros2-build-test, python-lint, firmware-build]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build + push runtime image (arm64 for Jetson)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.runtime
+          platforms: linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}/minibot-runtime:${{ github.sha }}

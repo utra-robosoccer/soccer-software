@@ -1,0 +1,7 @@
+# Isaac Lab training stack (workstation only — not deployed to robots).
+# Pin versions at competition time; these are the June 2026 baselines.
+isaaclab>=2.0          # NVIDIA Isaac Lab (pulls isaacsim)
+torch>=2.3
+numpy>=1.26
+onnx>=1.16
+onnxruntime>=1.18      # validate the exported policy before TensorRT conversion

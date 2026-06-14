@@ -1,0 +1,45 @@
+# ros2_control controller-manager configuration for MiniBot (L1, blueprint §4).
+#
+# Three things run in the controller manager:
+#   * joint_state_broadcaster   — publishes /joint_states from the HW interface
+#   * imu_sensor_broadcaster    — publishes /imu/data from the IMU sensor interface
+#   * residual_rl_controller    — THE policy layer: reads the MPC reference +
+#                                 measured state, adds a *bounded* RL residual,
+#                                 and writes the joint command (blueprint §4).
+#
+# The 1 kHz PD loop does NOT live here — it lives on the MCU (L0). The manager
+# runs at 100 Hz; the MPC node publishes its reference at ~50 Hz.
+
+controller_manager:
+  ros__parameters:
+    update_rate: 100 # Hz (L1 whole-body control band)
+
+    joint_state_broadcaster:
+      type: joint_state_broadcaster/JointStateBroadcaster
+
+    imu_sensor_broadcaster:
+      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+
+    residual_rl_controller:
+      type: soccer_control/ResidualRLController
+
+# ── Broadcasters ──
+imu_sensor_broadcaster:
+  ros__parameters:
+    sensor_name: imu_sensor
+    frame_id: imu_link
+
+# ── The residual-RL controller plugin ──
+residual_rl_controller:
+  ros__parameters:
+    joint: neck_pan
+    # Topic carrying the MPC reference trajectory (q*, qd*) for the joint.
+    reference_topic: control/mpc_reference
+    # ONNX policy exported from Isaac Lab (sim/export). Empty => zero residual
+    # (pure MPC), which is the safe default before a policy is trained.
+    policy_path: ""
+    # The residual is HARD-CLAMPED so a misbehaving policy can never drive the
+    # joint unstable (blueprint §4 "bounded residual").
+    residual_limit_rad: 0.20
+    # Feed-forward effort clamp (N·m).
+    effort_limit: 3.0

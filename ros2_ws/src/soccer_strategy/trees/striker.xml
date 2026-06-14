@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!-- Striker: chase the ball. Track it when seen, otherwise sweep to find it.
+     The whole tree is gated by IsNotHalted so HALT/PENALIZED freezes the robot
+     (the GameController is the ultimate authority — blueprint §7). -->
+<root BTCPP_format="4" main_tree_to_execute="Striker">
+  <BehaviorTree ID="Striker">
+    <Fallback>
+      <Sequence name="WhilePlaying">
+        <IsNotHalted/>
+        <Fallback name="FindOrTrack">
+          <Sequence name="TrackIfSeen">
+            <IsBallDetected/>
+            <TrackBall/>
+          </Sequence>
+          <ScanForBall/>
+        </Fallback>
+      </Sequence>
+      <Idle/>
+    </Fallback>
+  </BehaviorTree>
+</root>

@@ -1,0 +1,23 @@
+<library path="soccer_hardware">
+
+  <class name="soccer_hardware/MinibotSimHardware"
+         type="soccer_hardware::MinibotSimHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Simulation hardware interface for MiniBot. Integrates the single neck_pan
+      joint with a simple second-order model and synthesizes IMU readings.
+      Stands in for the Isaac/Mujoco HardwareInterface in sim-to-real testing.
+    </description>
+  </class>
+
+  <class name="soccer_hardware/MinibotSerialHardware"
+         type="soccer_hardware::MinibotSerialHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      Real hardware interface for MiniBot. Streams position/effort commands to
+      the STM32/Teensy MCU over serial (CRC16-framed, mirroring soccer-firmware),
+      reads back joint state + IMU, and faults if the MCU heartbeat goes silent.
+    </description>
+  </class>
+
+</library>

@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!-- Supporter: keep the ball in view to be ready for a pass, but don't commit to
+     it (the striker owns the ball). Track when seen, otherwise scan. -->
+<root BTCPP_format="4" main_tree_to_execute="Supporter">
+  <BehaviorTree ID="Supporter">
+    <Fallback>
+      <Sequence name="WhilePlaying">
+        <IsNotHalted/>
+        <Fallback name="WatchBall">
+          <Sequence>
+            <IsBallDetected/>
+            <TrackBall/>
+          </Sequence>
+          <ScanForBall/>
+        </Fallback>
+      </Sequence>
+      <Idle/>
+    </Fallback>
+  </BehaviorTree>
+</root>

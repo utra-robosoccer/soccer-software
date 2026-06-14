@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<!-- Goalie: hold position guarding the goal. Track the ball when it is visible
+     (to anticipate a shot) but otherwise stay still rather than chasing. -->
+<root BTCPP_format="4" main_tree_to_execute="Goalie">
+  <BehaviorTree ID="Goalie">
+    <Fallback>
+      <Sequence name="WhilePlaying">
+        <IsNotHalted/>
+        <Fallback name="GuardGoal">
+          <Sequence>
+            <IsBallDetected/>
+            <TrackBall/>
+          </Sequence>
+          <Idle/>
+        </Fallback>
+      </Sequence>
+      <Idle/>
+    </Fallback>
+  </BehaviorTree>
+</root>
