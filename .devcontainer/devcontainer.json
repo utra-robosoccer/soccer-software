@@ -1,0 +1,41 @@
+{
+  "name": "soccer-dev",
+  "build": {
+    "dockerfile": "../deploy/docker/Dockerfile.dev",
+    "context": ".."
+  },
+  "workspaceFolder": "/ws",
+  "mounts": [
+    "source=${localWorkspaceFolder},target=/ws,type=bind,consistency=cached"
+  ],
+  "remoteEnv": {
+    "ROS_DOMAIN_ID": "42"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cmake-tools",
+        "ms-vscode.cpptools-extension-pack",
+        "ms-vscode.cpptools",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-ros.ros",
+        "dotjoshjohnson.xml",
+        "ms-vscode-remote.remote-containers"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/bin/python3",
+        "cmake.cmakePath": "/usr/bin/cmake",
+        "[python]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "ms-python.python"
+        }
+      }
+    }
+  },
+  "postCreateCommand": "bash -c 'source /opt/ros/jazzy/setup.bash && cd ros2_ws && colcon build --symlink-install'",
+  "postStartCommand": "bash -c 'source /opt/ros/jazzy/setup.bash && if [ -f /ws/ros2_ws/install/setup.bash ]; then source /ws/ros2_ws/install/setup.bash; fi'",
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {}
+  }
+}

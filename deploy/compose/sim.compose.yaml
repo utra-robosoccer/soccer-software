@@ -31,9 +31,24 @@ services:
       - ../..:/ws
     environment:
       ROS_DOMAIN_ID: 42
-    # Mock referee: broadcasts PLAYING on :3838 so the robots start playing.
     command: >
       bash -c "sleep 15 &&
                python3 tools/mock_gamecontroller.py --state playing --rate 2"
     depends_on:
       - team
+
+  # Interactive dev shell for local development.
+  # Usage: docker compose run dev bash
+  dev:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.dev
+    image: minibot-dev:latest
+    working_dir: /ws
+    volumes:
+      - ../..:/ws
+    environment:
+      ROS_DOMAIN_ID: 42
+    stdin_open: true
+    tty: true
+    command: bash
