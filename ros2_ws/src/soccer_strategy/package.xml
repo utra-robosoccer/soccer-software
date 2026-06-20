@@ -1,0 +1,32 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>soccer_strategy</name>
+  <version>0.1.0</version>
+  <description>
+    L4 strategy for MiniBot (blueprint §6): a per-robot Behavior Tree
+    (BehaviorTree.CPP, Groot2-debuggable) plus a decentralized role auction — no
+    master. Each robot bids on roles (cost = distance to ball), independently
+    computes the same assignment, and re-bids automatically if a teammate drops.
+    Roles are XML trees loaded at launch (striker/supporter/goalie).
+  </description>
+
+  <maintainer email="team@robocup.example">RoboCup Humanoid Team</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>behaviortree_cpp</depend>
+  <depend>geometry_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>soccer_msgs</depend>
+  <depend>ament_index_cpp</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

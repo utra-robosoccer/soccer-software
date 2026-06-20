@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>soccer_localization</name>
+  <version>0.1.0</version>
+  <description>
+    Two-tier vision-anchored localization (localization report §3, §8). Tier-1:
+    an EKF fusing IMU + joint odometry into a smooth odom->base_link. Tier-2: a
+    Monte-Carlo (particle) filter that weights field-line + goalpost observations
+    against a precomputed likelihood-field map, with explorer particles for
+    kidnapped-robot recovery, publishing the global map->odom correction.
+  </description>
+
+  <maintainer email="team@robocup.example">RoboCup Humanoid Team</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf_transformations</exec_depend>
+  <exec_depend>soccer_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <exec_depend>python3-scipy</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

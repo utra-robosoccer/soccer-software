@@ -1,17 +1,50 @@
-build/
-install/
-log/
-# Python
+# ── ROS 2 / colcon ──
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+*.colcon
+
+# ── Python ──
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.eggs/
+.venv/
+venv/
 .pytest_cache/
-# C++ / build
+.mypy_cache/
+.ruff_cache/
+
+# ── C/C++ / firmware ──
+build/
+Debug/
+Release/
 *.o
-*.so
-# Editor / OS
+*.d
+*.su
+*.elf
+*.bin
+*.hex
+*.map
+
+# ── ML / sim artifacts ──
+sim/runs/
+sim/logs/
+*.onnx
+*.engine
+*.pt
+*.ckpt
+
+# ── DevOps / secrets ──
+*.env
+.env
+!*.env.example
+deploy/ansible/inventory.local.ini
+
+# ── Editors / OS ──
 .vscode/
 .idea/
-*.swp
 .DS_Store
-# ROS
-*.bag
+*.swp
+
+# ── Git LFS-tracked large binaries are NOT ignored; see .gitattributes ──

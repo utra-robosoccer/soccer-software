@@ -1,0 +1,54 @@
+# Local multi-robot simulation bring-up (blueprint §12).
+#
+#   docker compose -f sim.compose.yaml up
+#
+# Spins up a 2-robot decentralized scrimmage entirely in sim (sim hardware
+# interface, synthetic camera) plus a mock GameController. Uses host networking
+# so DDS discovery and the GameController UDP (3838/3939) work like on a real LAN.
+services:
+  team:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.dev
+    image: minibot-dev:latest
+    network_mode: host
+    working_dir: /ws
+    volumes:
+      - ../..:/ws
+    environment:
+      ROS_DOMAIN_ID: 42
+    command: >
+      bash -c "source /opt/ros/jazzy/setup.bash &&
+               cd ros2_ws && colcon build --symlink-install &&
+               source install/setup.bash &&
+               ros2 launch soccer_bringup team.launch.py num_robots:=2 sim:=true"
+
+  gamecontroller:
+    image: minibot-dev:latest
+    network_mode: host
+    working_dir: /ws
+    volumes:
+      - ../..:/ws
+    environment:
+      ROS_DOMAIN_ID: 42
+    command: >
+      bash -c "sleep 15 &&
+               python3 tools/mock_gamecontroller.py --state playing --rate 2"
+    depends_on:
+      - team
+
+  # Interactive dev shell for local development.
+  # Usage: docker compose run dev bash
+  dev:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.dev
+    image: minibot-dev:latest
+    working_dir: /ws
+    volumes:
+      - ../..:/ws
+    environment:
+      ROS_DOMAIN_ID: 42
+    stdin_open: true
+    tty: true
+    command: bash

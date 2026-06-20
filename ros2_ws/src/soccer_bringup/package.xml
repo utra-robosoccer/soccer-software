@@ -1,0 +1,39 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>soccer_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    Launch + parameters + per-robot namespacing for MiniBot (blueprint §8, §11).
+    robot.launch.py brings up ONE fully-namespaced robot (the same graph in sim
+    or on hardware via the `sim` arg); team.launch.py replicates it for N robots.
+    Ships a lightweight synthetic camera so the whole stack runs without Isaac.
+  </description>
+
+  <maintainer email="team@robocup.example">RoboCup Humanoid Team</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Everything the launch files spin up. -->
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>imu_sensor_broadcaster</exec_depend>
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>soccer_description</exec_depend>
+  <exec_depend>soccer_hardware</exec_depend>
+  <exec_depend>soccer_control</exec_depend>
+  <exec_depend>soccer_perception</exec_depend>
+  <exec_depend>soccer_localization</exec_depend>
+  <exec_depend>soccer_strategy</exec_depend>
+  <exec_depend>soccer_teamcomm</exec_depend>
+  <exec_depend>game_controller_bridge</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

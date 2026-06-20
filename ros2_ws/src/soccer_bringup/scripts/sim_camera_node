@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Executable wrapper so the synthetic camera can be launched as a ROS node."""
+from soccer_bringup.sim_camera import main
+
+if __name__ == "__main__":
+    main()

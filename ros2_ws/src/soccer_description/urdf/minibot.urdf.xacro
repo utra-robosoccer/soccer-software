@@ -1,0 +1,117 @@
+<?xml version="1.0"?>
+<!--
+  MiniBot — the smallest robot that still exercises every layer of the stack.
+
+    base_link ──(neck_pan: the ONE motor)── camera_mount ── camera_link (the ONE camera)
+        └── imu_link (the ONE IMU)
+
+  The same description is used in simulation and on hardware. The `sim` xacro arg
+  selects which ros2_control hardware plugin is loaded (see minibot.ros2_control.xacro),
+  which is the linchpin of sim-to-real parity (blueprint §10).
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="minibot">
+
+  <!-- ARGUMENTS ------------------------------------------------------------ -->
+  <!-- sim=true  -> load the simulation hardware interface (Isaac/Mujoco stub) -->
+  <!-- sim=false -> load the real hardware interface (serial bridge to the MCU) -->
+  <xacro:arg name="sim" default="true"/>
+  <!-- Serial port used by the real hardware interface to reach the MCU. -->
+  <xacro:arg name="serial_port" default="/dev/ttyACM0"/>
+
+  <!-- CONSTANTS ------------------------------------------------------------ -->
+  <xacro:property name="pan_limit" value="1.57"/>      <!-- +/- 90 deg -->
+  <xacro:property name="pan_effort" value="3.0"/>       <!-- N·m -->
+  <xacro:property name="pan_velocity" value="6.0"/>     <!-- rad/s -->
+
+  <!-- MATERIALS ------------------------------------------------------------ -->
+  <material name="grey"><color rgba="0.4 0.4 0.4 1.0"/></material>
+  <material name="blue"><color rgba="0.1 0.3 0.8 1.0"/></material>
+  <material name="black"><color rgba="0.05 0.05 0.05 1.0"/></material>
+
+  <!-- BASE / TORSO --------------------------------------------------------- -->
+  <link name="base_link">
+    <visual>
+      <geometry><box size="0.10 0.10 0.12"/></geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <geometry><box size="0.10 0.10 0.12"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="0.80"/>
+      <inertia ixx="0.0016" ixy="0.0" ixz="0.0" iyy="0.0016" iyz="0.0" izz="0.0013"/>
+    </inertial>
+  </link>
+
+  <!-- THE ONE IMU (rigidly fixed to the torso) ----------------------------- -->
+  <link name="imu_link">
+    <visual>
+      <geometry><box size="0.02 0.02 0.005"/></geometry>
+      <material name="black"/>
+    </visual>
+    <inertial>
+      <mass value="0.01"/>
+      <inertia ixx="1e-6" ixy="0.0" ixz="0.0" iyy="1e-6" iyz="0.0" izz="1e-6"/>
+    </inertial>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="imu_link"/>
+    <origin xyz="0 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+  <!-- THE ONE MOTOR: neck_pan revolute joint ------------------------------- -->
+  <link name="camera_mount">
+    <visual>
+      <geometry><cylinder radius="0.02" length="0.04"/></geometry>
+      <material name="blue"/>
+    </visual>
+    <inertial>
+      <mass value="0.10"/>
+      <inertia ixx="2e-5" ixy="0.0" ixz="0.0" iyy="2e-5" iyz="0.0" izz="2e-5"/>
+    </inertial>
+  </link>
+  <joint name="neck_pan" type="revolute">
+    <parent link="base_link"/>
+    <child link="camera_mount"/>
+    <origin xyz="0 0 0.08" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="${-pan_limit}" upper="${pan_limit}"
+           effort="${pan_effort}" velocity="${pan_velocity}"/>
+    <dynamics damping="0.05" friction="0.02"/>
+  </joint>
+
+  <!-- THE ONE CAMERA (monocular; carried by the panning mount) ------------- -->
+  <link name="camera_link">
+    <visual>
+      <geometry><box size="0.03 0.05 0.03"/></geometry>
+      <material name="black"/>
+    </visual>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="1e-5" ixy="0.0" ixz="0.0" iyy="1e-5" iyz="0.0" izz="1e-5"/>
+    </inertial>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="camera_mount"/>
+    <child link="camera_link"/>
+    <origin xyz="0.03 0 0.02" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Optical frame (REP-103: z forward, x right, y down) for projection. -->
+  <link name="camera_optical_frame"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/>
+    <child link="camera_optical_frame"/>
+    <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+  </joint>
+
+  <!-- ros2_control hardware + interfaces (the sim/real boundary) ----------- -->
+  <xacro:include filename="$(find soccer_description)/urdf/minibot.ros2_control.xacro"/>
+  <xacro:minibot_ros2_control
+      sim="$(arg sim)"
+      serial_port="$(arg serial_port)"
+      pan_limit="${pan_limit}"
+      pan_effort="${pan_effort}"/>
+
+</robot>

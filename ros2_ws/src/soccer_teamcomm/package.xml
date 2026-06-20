@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>soccer_teamcomm</name>
+  <version>0.1.0</version>
+  <description>
+    Decentralized team communication (blueprint §8). Packages this robot's
+    lightweight world model (self pose + ball) and role bid into a TeamData
+    packet and shares it over DDS on a GLOBAL topic, and relays teammates' data
+    back so every robot runs the same role auction. No master; losing one robot
+    degrades the team gracefully.
+  </description>
+
+  <maintainer email="team@robocup.example">RoboCup Humanoid Team</maintainer>
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>soccer_msgs</exec_depend>
+
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

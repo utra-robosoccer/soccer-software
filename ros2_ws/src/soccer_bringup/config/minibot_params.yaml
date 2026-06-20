@@ -1,0 +1,31 @@
+# Shared MiniBot parameters (per-robot values are overridden at launch via the
+# robot_name / player_id / team_number arguments). This file documents the
+# tunables; bring-up reads controllers.yaml from soccer_description for the
+# ros2_control side.
+
+/**:
+  ros__parameters:
+    use_sim_time: false
+
+# L4 strategy
+strategy_node:
+  ros__parameters:
+    goalie_id: 1
+    ball_timeout: 1.0 # s without a ball detection before "ball lost"
+
+# L4 team comms
+teamcomm_node:
+  ros__parameters:
+    rate_hz: 4.0
+
+# L5 referee
+gc_bridge_node:
+  ros__parameters:
+    data_port: 3838
+    return_port: 3939
+
+# L3 global localization
+mcl_node:
+  ros__parameters:
+    num_particles: 300
+    explorer_frac: 0.05 # fraction re-seeded each resample (kidnapped recovery)

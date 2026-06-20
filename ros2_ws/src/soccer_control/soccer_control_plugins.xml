@@ -1,0 +1,12 @@
+<library path="residual_rl_controller">
+  <class name="soccer_control/ResidualRLController"
+         type="soccer_control::ResidualRLController"
+         base_class_type="controller_interface::ControllerInterface">
+    <description>
+      Reads the MPC reference (q*, qd*) and the measured joint state, evaluates a
+      bounded RL residual policy (ONNX, exported from Isaac Lab), and writes
+      q_target = q* + clamp(Δq) plus a feed-forward effort. Because the residual
+      is hard-clamped a misbehaving policy can never destabilize the joint.
+    </description>
+  </class>
+</library>
