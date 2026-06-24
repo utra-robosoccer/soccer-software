@@ -1,0 +1,182 @@
+# syntax=docker/dockerfile:1.7
+# =============================================================================
+# Jetson (JetPack 7.2 / L4T R39.2) image lineage for the RoboCup robot.
+# -----------------------------------------------------------------------------
+# ONE multi-stage Dockerfile with a shared, immutable base stage and two
+# ISOLATED build targets, selected with `docker build --target <name>`:
+#
+#   --target zed-driver-image  -> ZED SDK 5.4 + TensorRT 10.16.2.10 + zed-ros2-wrapper
+#                                 (the camera container; runs zed_camera.launch.py)
+#   --target soccer-app-image  -> ROS 2 Jazzy + the soccer_ws workspace
+#                                 (the application container; runs robot.launch.py)
+#
+# Both targets share the `jetson-base` stage, so the CUDA userspace is built and
+# cached ONCE per `docker build` even though the two final images stay separate.
+#
+# WHY a generic CUDA base and not l4t-jetpack: there is NO l4t-jetpack image for
+# r39 (the l4t-* family stops at r36). JetPack 7.2 is a stock Ubuntu 24.04 + CUDA
+# 13 userspace; the NVIDIA Container Toolkit injects the host Tegra driver libs at
+# run time. This recipe is validated end-to-end on the real hardware — see
+# docs/zed_jetson_integration.md and docs/jetson_zed_workflow.md.
+#
+# Run with the NVIDIA Container Toolkit (CDI). MANDATORY host prerequisites are
+# applied by deploy/ansible/provision.yml (the toolkit 1.19.1 `enable-cuda-compat`
+# CDI hook is buggy and MUST be disabled, and the runtime forced to mode = "cdi").
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# STAGE 1 · jetson-base — the immutable shared foundation (CUDA + ROS apt repo)
+# -----------------------------------------------------------------------------
+FROM nvcr.io/nvidia/cuda:13.2.1-devel-ubuntu24.04 AS jetson-base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# The NGC CUDA image ships dGPU CUDA forward-compat driver libs under
+# /usr/local/cuda/compat. They are meaningless on Tegra (driver + CUDA are
+# version-locked by JetPack) and they shadow the injected host driver. Remove.
+RUN rm -rf /usr/local/cuda/compat
+
+# The ZED SDK installer (zed-driver target) verifies it is on a Jetson by reading
+# /etc/nv_tegra_release. The NGC CUDA image is not an L4T image, so provide the
+# L4T R39.2 marker that matches the real host. Harmless for the app target.
+RUN echo "# R39 (release), REVISION: 2.0, GCID: 45755727, BOARD: generic, EABI: aarch64, DATE: Mon Jun  1 09:28:48 PM UTC 2026" \
+        > /etc/nv_tegra_release
+
+# Common build utilities + the ROS 2 Jazzy apt repository, shared by both
+# targets. The ROS repo must exist before colcon/rosdep (they are NOT in the
+# Ubuntu repos). `universe` is enabled for ROS package dependencies.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl wget gnupg lsb-release software-properties-common \
+        git build-essential cmake sudo \
+    && add-apt-repository universe \
+    && curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+        -o /usr/share/keyrings/ros-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+        > /etc/apt/sources.list.d/ros2.list \
+    && rm -rf /var/lib/apt/lists/*
+
+# Unified entrypoint (sources ROS + whichever workspace the target builds).
+COPY deploy/docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENV ROS_DOMAIN_ID=42
+ENTRYPOINT ["/entrypoint.sh"]
+
+
+# -----------------------------------------------------------------------------
+# STAGE 2 · zed-driver-image — ZED SDK 5.4 + TensorRT + the zed-ros2-wrapper
+# -----------------------------------------------------------------------------
+# This is the ONLY image coupled to the ZED SDK / CUDA / JetPack. It publishes
+# the native /zed/zed_node/... topics; the app container bridges them onto the
+# repo's generic camera contract (soccer_bringup camera_bridge).
+FROM jetson-base AS zed-driver-image
+
+# --- ZED SDK 5.4 (built for L4T 39.2 / JetPack 7.2) --------------------------
+#   silent       : no prompts
+#   skip_drivers : the host kernel already provides the USB/uvc drivers
+#   skip_python  : keep the image lean (add pyzed later if needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        zstd udev kmod libusb-1.0-0-dev libgomp1 libopenblas0 libgl1 \
+    && wget -q -O /tmp/ZED_SDK.run https://download.stereolabs.com/zedsdk/5.4/l4t39.2/jetsons \
+    && chmod +x /tmp/ZED_SDK.run \
+    && /tmp/ZED_SDK.run -- silent skip_drivers skip_python \
+    && rm -f /tmp/ZED_SDK.run \
+    && rm -rf /var/lib/apt/lists/* \
+    # ZED downloads neural-depth / object-detection models here on first run;
+    # mount a named volume on this path to persist them across containers.
+    && mkdir -p /usr/local/zed/resources
+
+# --- TensorRT (ZED neural depth + object detection) --------------------------
+# The ZED SDK AI module dlopens libnvinfer.so.10 at run time and requires the
+# EXACT TensorRT that ships with JetPack 7.2 (10.16.2.10). The NGC CUDA image's
+# sbsa repo pins a *newer* 10.16.1 at priority 600 that ZED rejects ("Cannot find
+# TENSORRT"), so add the NVIDIA L4T (Jetson) repo and pin it higher for the
+# TensorRT packages to pull the matching 10.16.2.10 build.
+RUN wget -qO /etc/apt/trusted.gpg.d/jetson-ota-public.asc \
+        https://repo.download.nvidia.com/jetson/jetson-ota-public.asc \
+    && echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" \
+        > /etc/apt/sources.list.d/nvidia-l4t-apt-source.list \
+    && printf 'Package: libnvinfer* libnvonnxparsers*\nPin: origin repo.download.nvidia.com\nPin-Priority: 700\n' \
+        > /etc/apt/preferences.d/l4t-tensorrt \
+    && apt-get update && apt-get install -y --no-install-recommends \
+        libnvinfer10 libnvinfer-plugin10 libnvonnxparsers10 libcudnn9-cuda-13 \
+    && rm -rf /var/lib/apt/lists/* \
+        /etc/apt/sources.list.d/nvidia-l4t-apt-source.list \
+        /etc/apt/preferences.d/l4t-tensorrt
+
+# The ZED AI module resolves TensorRT via the *unversioned* SONAMEs (which the
+# runtime packages do not ship) and gates the module behind a version check.
+# Provide the unversioned symlinks + enable the SDK's TensorRT compatibility mode
+# so neural depth / object detection can build their engines at run time. (Kept a
+# separate, cheap layer AFTER the multi-GB TensorRT layer so that stays cached.)
+ENV ZED_SDK_TENSORRT_VERSION_COMPATIBILITY_MODE=1
+RUN ln -sf libnvinfer.so.10        /lib/aarch64-linux-gnu/libnvinfer.so \
+    && ln -sf libnvinfer_plugin.so.10  /lib/aarch64-linux-gnu/libnvinfer_plugin.so \
+    && ln -sf libnvonnxparsers.so.10   /lib/aarch64-linux-gnu/libnvonnxparsers.so \
+    && ldconfig
+
+# --- ROS 2 Jazzy + the ZED ROS 2 wrapper -------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-jazzy-ros-base python3-colcon-common-extensions python3-rosdep python3-pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build notes (from the live bring-up):
+#  * libsl_zed.so hard-needs libcuda.so.1 (the CUDA *driver*), injected only at
+#    `docker run`. Satisfy the linker with the CUDA driver *stub* (symlinked to
+#    libcuda.so.1, exposed via LIBRARY_PATH for the link step); the real driver
+#    resolves by soname at run time.
+#  * zed_debug builds a standalone executable that also links Tegra multimedia
+#    libs (Argus / NvBufSurface) absent at build time — a debug-only helper, so
+#    it is ignored here.
+#  * MAKEFLAGS + --parallel-workers cap memory so an 8 GB Orin does not OOM.
+RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1 \
+    && mkdir -p /ros2_ws/src && cd /ros2_ws/src \
+    && git clone --recursive https://github.com/stereolabs/zed-ros2-wrapper.git \
+    && cd /ros2_ws \
+    && apt-get update \
+    && (rosdep init 2>/dev/null || true) && rosdep update \
+    && . /opt/ros/jazzy/setup.sh \
+    && rosdep install --from-paths src --ignore-src -r -y \
+    && LIBRARY_PATH=/usr/local/cuda/lib64/stubs MAKEFLAGS="-j4" \
+       colcon build --symlink-install \
+         --packages-ignore zed_debug \
+         --parallel-workers 2 \
+         --cmake-args=-DCMAKE_BUILD_TYPE=Release \
+    && rm -rf /var/lib/apt/lists/* /root/.ros/rosdep
+
+WORKDIR /ros2_ws
+# Native ZED topics; the app container's camera_bridge maps them to the contract.
+CMD ["ros2", "launch", "zed_wrapper", "zed_camera.launch.py", "camera_model:=zedm"]
+
+
+# -----------------------------------------------------------------------------
+# STAGE 3 · soccer-app-image — ROS 2 Jazzy + the soccer_ws application workspace
+# -----------------------------------------------------------------------------
+# App nodes (perception / localization / strategy / control / bridges). FROM the
+# shared CUDA base so the detector can later load an RF-DETR TensorRT engine; the
+# stack is CPU-only today and consumes the camera contract over DDS.
+FROM jetson-base AS soccer-app-image
+
+WORKDIR /ws
+
+# Runtime + build dependencies for the workspace. rosdep fills any gaps from the
+# package.xml manifests; the common heavy deps are listed to warm the apt cache.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-jazzy-ros-base python3-colcon-common-extensions python3-rosdep python3-pip \
+        python3-scipy python3-opencv \
+        ros-jazzy-cv-bridge \
+        ros-jazzy-ros2-control ros-jazzy-ros2-controllers \
+        ros-jazzy-behaviortree-cpp \
+        ros-jazzy-robot-state-publisher ros-jazzy-xacro \
+    && rm -rf /var/lib/apt/lists/*
+
+# Build the workspace (merge-install -> lean runtime layout, like Dockerfile.runtime).
+COPY ros2_ws/src ./src
+RUN (rosdep init 2>/dev/null || true) && rosdep update \
+    && . /opt/ros/jazzy/setup.sh \
+    && apt-get update && rosdep install --from-paths src --ignore-src -r -y \
+    && rm -rf /var/lib/apt/lists/* \
+    && MAKEFLAGS="-j4" colcon build --merge-install --parallel-workers 2 \
+         --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# Real robot: sim:=false (real MCU plugin) + camera:=zed (bridge the ZED contract).
+CMD ["ros2", "launch", "soccer_bringup", "robot.launch.py", "sim:=false", "camera:=zed"]

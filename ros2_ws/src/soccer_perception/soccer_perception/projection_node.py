@@ -16,6 +16,7 @@ from __future__ import annotations
 import rclpy
 from geometry_msgs.msg import Point, PointStamped
 from rclpy.node import Node
+from sensor_msgs.msg import CameraInfo
 from soccer_msgs.msg import BoundingBoxes, FieldFeature, FieldFeatureArray
 from std_msgs.msg import Header
 
@@ -56,6 +57,11 @@ class ProjectionNode(Node):
         self.det_sub = self.create_subscription(
             BoundingBoxes, "detections", self._on_detections, 10
         )
+        # Adopt the camera's real intrinsics when available (ZED publishes a
+        # calibrated camera_info); until then the constructor defaults are used.
+        self.caminfo_sub = self.create_subscription(
+            CameraInfo, "camera_info", self._on_camera_info, 10
+        )
         if self._use_depth:
             self.depth_sub = self.create_subscription(
                 Image, "camera/depth", self._on_depth, 5
@@ -63,6 +69,14 @@ class ProjectionNode(Node):
         self.get_logger().info(
             f"projection_node up (depth={'on' if self._use_depth else 'off'})."
         )
+
+    def _on_camera_info(self, msg: CameraInfo) -> None:
+        k = msg.k  # row-major 3x3 intrinsics
+        if k[0] > 0.0 and k[4] > 0.0:
+            self._cam.fx, self._cam.fy = float(k[0]), float(k[4])
+            self._cam.cx, self._cam.cy = float(k[2]), float(k[5])
+        if msg.width and msg.height:
+            self._cam.width, self._cam.height = int(msg.width), int(msg.height)
 
     def _on_depth(self, msg) -> None:
         self._depth = self._bridge.imgmsg_to_cv2(msg, desired_encoding="passthrough")
