@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  FastDDS large-message transport profile (loaded in BOTH the camera and robot
+  containers via FASTRTPS_DEFAULT_PROFILES_FILE).
+
+  WHY THIS EXISTS
+  ---------------
+  The ZED wrapper publishes large samples: a 720p RGB image is ~2.7 MB and the
+  registered depth map is ~3.7 MB. FastDDS's *default* shared-memory segment is
+  only 512 KB, so those samples do NOT fit in SHM and silently fall back to
+  fragmented UDP loopback. Even after raising the kernel socket buffers
+  (net.core.rmem_max), reassembling 2.7 MB across ~40 loopback datagrams throttles
+  the image stream to ~1 Hz while small topics (camera_info, imu) run at 16-83 Hz.
+
+  THE FIX
+  -------
+  Define an explicit SHM transport with a 16 MB segment (holds ~4-6 large frames),
+  large enough that images and depth travel entirely through shared memory between
+  the two same-host containers (they share /dev/shm via the `-v /dev:/dev` mount).
+  A UDPv4 transport is kept for multicast discovery and any non-SHM fallback.
+
+  Memory note (8 GB Orin Nano): segment_size is allocated per participant. 16 MB x
+  ~20 active participants is ~320 MB, well within headroom. Raise with care.
+-->
+<dds xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <profiles>
+        <transport_descriptors>
+            <!-- Shared memory: sized to carry multi-MB image/depth samples. -->
+            <transport_descriptor>
+                <transport_id>shm_large</transport_id>
+                <type>SHM</type>
+                <segment_size>16777216</segment_size>
+                <maxMessageSize>8388608</maxMessageSize>
+                <port_queue_capacity>512</port_queue_capacity>
+            </transport_descriptor>
+            <!-- UDPv4 kept for multicast PDP discovery / non-SHM fallback. -->
+            <transport_descriptor>
+                <transport_id>udp_default</transport_id>
+                <type>UDPv4</type>
+                <sendBufferSize>16777216</sendBufferSize>
+                <receiveBufferSize>16777216</receiveBufferSize>
+            </transport_descriptor>
+        </transport_descriptors>
+
+        <participant profile_name="large_msg_profile" is_default_profile="true">
+            <rtps>
+                <userTransports>
+                    <transport_id>shm_large</transport_id>
+                    <transport_id>udp_default</transport_id>
+                </userTransports>
+                <useBuiltinTransports>false</useBuiltinTransports>
+            </rtps>
+        </participant>
+    </profiles>
+</dds>

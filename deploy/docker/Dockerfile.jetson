@@ -110,9 +110,27 @@ RUN wget -qO /etc/apt/trusted.gpg.d/jetson-ota-public.asc \
 # separate, cheap layer AFTER the multi-GB TensorRT layer so that stays cached.)
 ENV ZED_SDK_TENSORRT_VERSION_COMPATIBILITY_MODE=1
 RUN ln -sf libnvinfer.so.10        /lib/aarch64-linux-gnu/libnvinfer.so \
+    && ln -sf libnvinfer_lean.so.10    /lib/aarch64-linux-gnu/libnvinfer_lean.so \
     && ln -sf libnvinfer_plugin.so.10  /lib/aarch64-linux-gnu/libnvinfer_plugin.so \
     && ln -sf libnvonnxparsers.so.10   /lib/aarch64-linux-gnu/libnvonnxparsers.so \
     && ldconfig
+
+# libnvinfer-lean10 is installed in its own small layer (~20 MB) so the main
+# TensorRT layer above (libnvinfer10 ≈ 2.3 GB + libcudnn9 ≈ 528 MB) stays
+# Docker-cache-stable across edits. The unversioned libnvinfer_lean.so symlink
+# is already created above; Linux symlinks do not require the target to exist
+# at creation time, so layer ordering is safe.
+RUN wget -qO /etc/apt/trusted.gpg.d/jetson-ota-public-lean.asc \
+        https://repo.download.nvidia.com/jetson/jetson-ota-public.asc \
+    && echo "deb https://repo.download.nvidia.com/jetson/common r39.2 main" \
+        > /etc/apt/sources.list.d/nvidia-l4t-lean.list \
+    && printf 'Package: libnvinfer-lean10\nPin: origin repo.download.nvidia.com\nPin-Priority: 700\n' \
+        > /etc/apt/preferences.d/l4t-tensorrt-lean \
+    && apt-get update && apt-get install -y --no-install-recommends libnvinfer-lean10 \
+    && ldconfig \
+    && rm -rf /var/lib/apt/lists/* \
+        /etc/apt/sources.list.d/nvidia-l4t-lean.list \
+        /etc/apt/preferences.d/l4t-tensorrt-lean
 
 # --- ROS 2 Jazzy + the ZED ROS 2 wrapper -------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -142,6 +160,16 @@ RUN ln -sf /usr/local/cuda/lib64/stubs/libcuda.so /usr/local/cuda/lib64/stubs/li
          --parallel-workers 2 \
          --cmake-args=-DCMAKE_BUILD_TYPE=Release \
     && rm -rf /var/lib/apt/lists/* /root/.ros/rosdep
+
+# CycloneDDS RMW — Stereolabs' recommended/most-tested middleware for the ZED
+# wrapper (and required for reliable Nav2 + multi-machine team comm). Installed
+# as a late, cheap layer (~a few MB) AFTER the multi-GB TensorRT + zed-ros2-wrapper
+# build so those stay Docker-cache-stable. FastDDS (shipped with ros-base) remains
+# installed as the fallback; the active RMW is chosen at run time via the
+# RMW_IMPLEMENTATION env var. See deploy/compose/cyclonedds_profile.xml.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-jazzy-rmw-cyclonedds-cpp \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /ros2_ws
 # Native ZED topics; the app container's camera_bridge maps them to the contract.
@@ -177,6 +205,14 @@ RUN (rosdep init 2>/dev/null || true) && rosdep update \
     && rm -rf /var/lib/apt/lists/* \
     && MAKEFLAGS="-j4" colcon build --merge-install --parallel-workers 2 \
          --cmake-args -DCMAKE_BUILD_TYPE=Release
+
+# CycloneDDS RMW — must be present in BOTH containers so the whole ROS graph can
+# run on the same middleware (all nodes must share an RMW to communicate). Late,
+# cheap layer so the workspace colcon build above stays cached. FastDDS stays as
+# the fallback; RMW_IMPLEMENTATION selects the active one at run time.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ros-jazzy-rmw-cyclonedds-cpp \
+    && rm -rf /var/lib/apt/lists/*
 
 # Real robot: sim:=false (real MCU plugin) + camera:=zed (bridge the ZED contract).
 CMD ["ros2", "launch", "soccer_bringup", "robot.launch.py", "sim:=false", "camera:=zed"]

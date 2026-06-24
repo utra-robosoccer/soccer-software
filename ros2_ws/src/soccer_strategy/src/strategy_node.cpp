@@ -56,8 +56,9 @@ public:
       });
     // Team data is shared on a GLOBAL (un-namespaced) topic so every robot sees
     // every bid and computes the SAME assignment (blueprint §6, §8).
+    // Must match teamcomm_node's SENSOR_DATA (best-effort) QoS profile.
     team_sub_ = create_subscription<soccer_msgs::msg::TeamData>(
-      "/team_data", 20,
+      "/team_data", rclcpp::SensorDataQoS(),
       [this](const soccer_msgs::msg::TeamData::SharedPtr m) {
         bids_[m->player_id] = {
           static_cast<uint8_t>(m->player_id), m->bid.cost,

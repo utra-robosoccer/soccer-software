@@ -122,14 +122,25 @@ void MinibotSerialHardware::close_port()
 hardware_interface::CallbackReturn MinibotSerialHardware::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  if (!open_port()) {
-    RCLCPP_FATAL(
-      rclcpp::get_logger("MinibotSerialHardware"),
-      "Could not open serial port %s", serial_port_.c_str());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+  // Initialise last_rx_ so the watchdog has a valid baseline regardless of
+  // whether the port opens. The fd_ < 0 guard in read() prevents the watchdog
+  // from running until a real link is established anyway.
   last_rx_ = std::chrono::steady_clock::now();
   imu_ = {0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 9.81};
+
+  if (!open_port()) {
+    // Absent or unplugged MCU is a non-fatal condition: the hardware plugin
+    // enters ACTIVE with fd_ = -1. read() returns OK immediately (no-op, no
+    // watchdog), write() silently drops commands. The ros2_control graph keeps
+    // running so all other nodes (perception, strategy, comms) stay up.
+    // ros2_control 4.x throws std::runtime_error if on_activate returns ERROR,
+    // killing the entire controller_manager — returning SUCCESS avoids that.
+    RCLCPP_WARN(
+      rclcpp::get_logger("MinibotSerialHardware"),
+      "Serial port %s not available — running in no-MCU mode (read/write are no-ops).",
+      serial_port_.c_str());
+    return hardware_interface::CallbackReturn::SUCCESS;
+  }
   RCLCPP_INFO(rclcpp::get_logger("MinibotSerialHardware"), "Serial link up.");
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -144,6 +155,14 @@ hardware_interface::CallbackReturn MinibotSerialHardware::on_deactivate(
 hardware_interface::return_type MinibotSerialHardware::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
+  // Guard: read() must not run before on_activate() opens the port.
+  // ros2_control 4.x may call read() during initialisation before the
+  // hardware lifecycle reaches ACTIVE; returning OK with stale (zero) state
+  // is safe because no controller is commanding the joint yet.
+  if (fd_ < 0) {
+    return hardware_interface::return_type::OK;
+  }
+
 #if defined(__unix__) || defined(__APPLE__)
   // Wire format mirrors soccer-firmware: header + MOTOR_STATE "<ffffIH"
   // (pos, vel, eff, temp, ts_us, crc). A real implementation reassembles frames

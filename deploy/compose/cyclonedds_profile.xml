@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  CycloneDDS tuning for the ZED ROS 2 wrapper on the Jetson.
+
+  Loaded in BOTH containers via CYCLONEDDS_URI when RMW_IMPLEMENTATION is
+  rmw_cyclonedds_cpp (see deploy/compose/robot.compose.yaml). CycloneDDS is the
+  middleware Stereolabs recommends and tests most extensively for the ZED wrapper,
+  and it is the reliable choice for Nav2 and multi-machine team communication.
+
+  These values come from Stereolabs' "DDS and Network Tuning for ROS 2" guide
+  (https://docs.stereolabs.com/docs/integrations/ros-2/dds-and-network-tuning),
+  which tunes Cyclone for the large image / depth / point-cloud messages the ZED
+  publishes:
+    * SocketReceiveBufferSize min=10MB  — Cyclone requests a 10 MB socket buffer so
+      large samples are not dropped. The kernel must allow this: net.core.rmem_max
+      is raised to 16 MB by deploy/ansible/provision.yml (/etc/sysctl.d/60-zed-dds-buffers.conf).
+    * MaxMessageSize 65500B  — keep individual datagrams just under the 64 KB UDP
+      limit; Cyclone fragments larger samples itself.
+    * WhcHigh 500kB  — writer history cache high-water mark for flow control.
+
+  NOTE on this same-host deployment: both containers run with network_mode: host,
+  so Cyclone peers talk over the loopback interface (lo, MTU 65536) — no physical
+  NIC MTU / jumbo-frame change is needed (that only matters machine-to-machine).
+  Shared-memory (Iceoryx) transport is intentionally NOT enabled: it needs an
+  external iox-roudi daemon. If Cyclone's loopback throughput is insufficient for
+  the image stream, the FastDDS 16 MB SHM profile (fastdds_profile.xml) remains
+  available as a one-line RMW toggle.
+-->
+<CycloneDDS xmlns="https://cdds.io/config"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="https://cdds.io/config https://raw.githubusercontent.com/eclipse-cyclonedds/cyclonedds/master/etc/cyclonedds.xsd">
+  <Domain Id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface autodetermine="true" priority="default" multicast="default" />
+      </Interfaces>
+      <AllowMulticast>default</AllowMulticast>
+      <MaxMessageSize>65500B</MaxMessageSize>
+    </General>
+    <Internal>
+      <SocketReceiveBufferSize min="10MB"/>
+      <Watermarks>
+        <WhcHigh>500kB</WhcHigh>
+      </Watermarks>
+    </Internal>
+  </Domain>
+</CycloneDDS>

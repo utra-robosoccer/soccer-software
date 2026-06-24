@@ -9,37 +9,46 @@
 #
 # The 1 kHz PD loop does NOT live here — it lives on the MCU (L0). The manager
 # runs at 100 Hz; the MPC node publishes its reference at ~50 Hz.
+#
+# NAMESPACING: robot.launch.py pushes every node under a per-robot namespace
+# (/robot_1, ...), so the manager is actually /robot_1/controller_manager and the
+# controllers are /robot_1/joint_state_broadcaster, etc. The leading "/**"
+# wildcard makes these parameters match the nodes REGARDLESS of namespace. A bare
+# "controller_manager:" key would resolve to the un-namespaced /controller_manager
+# and silently fail to load, after which the spawners abort with
+# "The 'type' param was not defined for '<controller>'".
 
-controller_manager:
-  ros__parameters:
-    update_rate: 100 # Hz (L1 whole-body control band)
+/**:
+  controller_manager:
+    ros__parameters:
+      update_rate: 100 # Hz (L1 whole-body control band)
 
-    joint_state_broadcaster:
-      type: joint_state_broadcaster/JointStateBroadcaster
+      joint_state_broadcaster:
+        type: joint_state_broadcaster/JointStateBroadcaster
 
-    imu_sensor_broadcaster:
-      type: imu_sensor_broadcaster/IMUSensorBroadcaster
+      imu_sensor_broadcaster:
+        type: imu_sensor_broadcaster/IMUSensorBroadcaster
 
-    residual_rl_controller:
-      type: soccer_control/ResidualRLController
+      residual_rl_controller:
+        type: soccer_control/ResidualRLController
 
-# ── Broadcasters ──
-imu_sensor_broadcaster:
-  ros__parameters:
-    sensor_name: imu_sensor
-    frame_id: imu_link
+  # ── Broadcasters ──
+  imu_sensor_broadcaster:
+    ros__parameters:
+      sensor_name: imu_sensor
+      frame_id: imu_link
 
-# ── The residual-RL controller plugin ──
-residual_rl_controller:
-  ros__parameters:
-    joint: neck_pan
-    # Topic carrying the MPC reference trajectory (q*, qd*) for the joint.
-    reference_topic: control/mpc_reference
-    # ONNX policy exported from Isaac Lab (sim/export). Empty => zero residual
-    # (pure MPC), which is the safe default before a policy is trained.
-    policy_path: ""
-    # The residual is HARD-CLAMPED so a misbehaving policy can never drive the
-    # joint unstable (blueprint §4 "bounded residual").
-    residual_limit_rad: 0.20
-    # Feed-forward effort clamp (N·m).
-    effort_limit: 3.0
+  # ── The residual-RL controller plugin ──
+  residual_rl_controller:
+    ros__parameters:
+      joint: neck_pan
+      # Topic carrying the MPC reference trajectory (q*, qd*) for the joint.
+      reference_topic: control/mpc_reference
+      # ONNX policy exported from Isaac Lab (sim/export). Empty => zero residual
+      # (pure MPC), which is the safe default before a policy is trained.
+      policy_path: ""
+      # The residual is HARD-CLAMPED so a misbehaving policy can never drive the
+      # joint unstable (blueprint §4 "bounded residual").
+      residual_limit_rad: 0.20
+      # Feed-forward effort clamp (N·m).
+      effort_limit: 3.0

@@ -1,0 +1,27 @@
+# ZED wrapper parameter overrides for the soccer robot bring-up.
+#
+# Loaded via `ros_params_override_path:=` on the camera service command in
+# robot.compose.yaml. The launch file appends this file AFTER both
+# common_stereo.yaml and the model file (zedm.yaml), so values here win over both.
+#
+# WHY (grab_resolution: HD720): on the 8 GB Orin Nano the ZED Mini's default
+# HD1080 capture produces ~6 MB raw frames and runs NEURAL_LIGHT depth at 1080p.
+# That throttled the grab loop to ~11 Hz and choked the inter-process image
+# transport — the perception stack received well under 1 fps of imagery while the
+# tiny camera_info/imu messages flowed fine (a large-message problem, not QoS).
+# HD720 (1280x720) roughly halves the frame size and greatly speeds up the
+# neural-depth inference, restoring a usable frame rate while keeping ample detail
+# for ball / field-line detection and VIO.
+#
+# NOTE: changing grab_resolution triggers a one-time TensorRT neural-depth engine
+# optimization for the new resolution (cached afterwards in the zed_resources
+# volume), so the FIRST start after this change takes a few extra minutes.
+#
+# Positional tracking (VIO) is intentionally left at the wrapper defaults (enabled,
+# set_gravity_as_origin: true) so it is ready for later use. The one-time
+# "Gravity alignment issues detected" message at startup is harmless (it does not
+# loop — verified by running the stack).
+/**:
+    ros__parameters:
+        general:
+            grab_resolution: 'HD720'

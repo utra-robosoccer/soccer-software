@@ -33,9 +33,27 @@ services:
     environment:
       - ROS_DOMAIN_ID=42
       - NVIDIA_DRIVER_CAPABILITIES=all
+      # ── DDS middleware selection (toggleable) ──────────────────────────────
+      # CycloneDDS is Stereolabs' recommended/most-tested RMW for the ZED wrapper
+      # and the reliable choice for Nav2 + multi-machine team comm, so it is the
+      # DEFAULT. To fall back to the proven FastDDS 16 MB shared-memory transport,
+      # override the variable (placed AFTER sudo so it survives env stripping):
+      #   sudo RMW_IMPLEMENTATION=rmw_fastrtps_cpp docker compose -f deploy/compose/robot.compose.yaml up -d
+      # Both RMWs are installed in the image and both config files are mounted
+      # below; each RMW reads only its own variable, so setting both is harmless.
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///config/cyclonedds_profile.xml      # large-msg tuning (CycloneDDS)
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/config/fastdds_profile.xml # 16 MB SHM segment (FastDDS fallback)
     volumes:
       - /dev:/dev # USB camera
       - zed_resources:/usr/local/zed/resources # persist optimized neural-depth engines
+      - ./cyclonedds_profile.xml:/config/cyclonedds_profile.xml:ro # large-message tuning (CycloneDDS)
+      - ./fastdds_profile.xml:/config/fastdds_profile.xml:ro # large-message SHM transport (FastDDS)
+      # Override the ZED grab resolution to HD720 (default HD1080 starves the
+      # perception stack on the 8 GB Orin Nano: 6 MB frames + 1080p NEURAL depth
+      # throttle the grab to ~11 Hz and choke the image transport). Positional
+      # tracking (VIO) is left at wrapper defaults. See zed_params_override.yaml.
+      - ./zed_params_override.yaml:/config/zed_params_override.yaml:ro
     # GPU injection via the NVIDIA Container Toolkit (CDI) — the compose
     # equivalent of `--gpus all`. Requires the host CDI fixes above.
     deploy:
@@ -45,7 +63,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    command: ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedm
+    command: ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedm ros_params_override_path:=/config/zed_params_override.yaml
     restart: unless-stopped
 
   # ── Application: perception / localization / strategy / control + camera bridge ──
@@ -60,8 +78,16 @@ services:
     network_mode: host
     environment:
       - ROS_DOMAIN_ID=42
+      # DDS middleware MUST match the camera container (all nodes share one RMW).
+      # CycloneDDS is the default; fall back to FastDDS by overriding the variable
+      # for BOTH services together. See the camera service above for the toggle.
+      - RMW_IMPLEMENTATION=${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}
+      - CYCLONEDDS_URI=file:///config/cyclonedds_profile.xml      # large-msg tuning (CycloneDDS)
+      - FASTRTPS_DEFAULT_PROFILES_FILE=/config/fastdds_profile.xml # 16 MB SHM segment (FastDDS fallback)
     volumes:
       - /dev:/dev
+      - ./cyclonedds_profile.xml:/config/cyclonedds_profile.xml:ro # large-message tuning (CycloneDDS)
+      - ./fastdds_profile.xml:/config/fastdds_profile.xml:ro # large-message SHM transport (FastDDS)
     # The app is CPU-only today (HSV detector). Uncomment to give it the GPU once
     # the RF-DETR TensorRT detector lands (report §3.2 of the localization doc):
     # deploy:

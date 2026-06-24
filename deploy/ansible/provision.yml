@@ -15,6 +15,11 @@
 #      / compose `devices: [driver: nvidia]` inject the GPU correctly.
 #   3. On-device colcon builds of the ZED wrapper + TensorRT engines OOM the 8 GB
 #      Orin Nano without swap, so we add an 8 GB swapfile (build hosts only).
+#   4. The ZED publishes ~2.7 MB images / ~3.7 MB depth maps. The 512 KB default
+#      FastDDS shared-memory segment can't hold them, so they fall back to
+#      fragmented UDP and the stream collapses to ~1 Hz. The SHM segment is sized
+#      up in deploy/compose/fastdds_profile.xml; here we harden the kernel UDP
+#      fallback buffers (Stereolabs "DDS and Network Tuning for ROS 2").
 ---
 - name: Provision Jetson host for the ZED + GPU container stack
   hosts: robots
@@ -34,6 +39,10 @@
         name: nvidia-cdi-refresh.service
         state: restarted
       listen: refresh cdi
+
+    - name: Reload sysctl settings
+      ansible.builtin.command: sysctl --system
+      listen: reload sysctl
 
   tasks:
     # ── Fix 1: disable the buggy enable-cuda-compat CDI hook ──────────────────
@@ -106,6 +115,33 @@
     - name: Enable the swapfile now
       ansible.builtin.command: "swapon {{ swap_path }}"
       when: manage_swap and swap_created is changed
+
+    # ── Fix 4: DDS large-message kernel tuning for the ZED image/depth streams ─
+    # The ZED wrapper publishes ~2.7 MB (720p) images and ~3.7 MB depth maps.
+    # The PRIMARY fix is the FastDDS 16 MB shared-memory segment in
+    # deploy/compose/fastdds_profile.xml — SHM carries the large samples between
+    # the camera and robot containers (they share /dev/shm via `-v /dev:/dev`).
+    # The default 512 KB SHM segment cannot hold a 2.7 MB frame, so without it
+    # FastDDS silently falls back to fragmented UDP loopback and the image
+    # stream collapses to ~1 Hz. These kernel settings harden that UDP fallback
+    # and discovery path. Ref: Stereolabs "DDS and Network Tuning for ROS 2".
+    - name: Install DDS large-message sysctl tuning
+      ansible.builtin.copy:
+        dest: /etc/sysctl.d/60-zed-dds-buffers.conf
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          # Managed by deploy/ansible/provision.yml — DDS large-message tuning.
+          # Primary fix is the FastDDS 16 MB SHM segment (fastdds_profile.xml);
+          # these harden the UDP fallback for 2.7 MB images / 3.7 MB depth maps.
+          net.core.rmem_max = 16777216
+          net.core.wmem_max = 16777216
+          net.core.netdev_max_backlog = 10000
+          # IP-fragment reassembly for large UDP datagrams (Stereolabs guidance).
+          net.ipv4.ipfrag_time = 3
+          net.ipv4.ipfrag_high_thresh = 134217728
+      notify: reload sysctl
 
     # ── Verify: Docker default runtime should already be nvidia on JetPack ─────
     - name: Read /etc/docker/daemon.json
