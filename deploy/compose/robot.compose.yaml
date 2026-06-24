@@ -1,0 +1,82 @@
+# Real-robot bring-up on the Jetson (JetPack 7.2 / L4T R39.2) — blueprint §12.
+#
+#   docker compose -f robot.compose.yaml up --build
+#
+# Two containers, both from deploy/docker/Dockerfile.jetson (multi-target):
+#   * camera  (zed-driver-image)  — ZED SDK 5.4 + zed-ros2-wrapper; publishes the
+#                                   native /zed/zed_node/... topics.
+#   * robot   (soccer-app-image)  — the soccer_ws stack; robot.launch.py with
+#                                   camera:=zed bridges the ZED topics onto the
+#                                   generic camera contract (camera/image_raw, …).
+#
+# This is the proven run contract from the live bring-up (docs/zed_jetson_integration.md):
+#   --gpus all  --privileged  --network host  -v /dev:/dev
+#   -v zed_resources:/usr/local/zed/resources
+#
+# MANDATORY host prerequisites (apply once via deploy/ansible/provision.yml):
+#   * /etc/nvidia-container-toolkit/nvidia-cdi-refresh.env
+#        NVIDIA_CTK_CDI_GENERATE_DISABLED_HOOKS=enable-cuda-compat   (+ restart
+#        nvidia-cdi-refresh.service) — the toolkit 1.19.1 hook is buggy.
+#   * /etc/nvidia-container-runtime/config.toml -> mode = "cdi"
+#   * ZED Mini on a USB 3.0 port.
+services:
+  # ── Camera driver: ZED SDK + zed-ros2-wrapper (the only GPU/JetPack-coupled image) ──
+  camera:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.jetson
+      target: zed-driver-image
+    image: soccer-zed:jazzy
+    container_name: soccer-camera
+    privileged: true # USB ZED Mini device access
+    network_mode: host # ROS 2 DDS discovery on the host network
+    environment:
+      - ROS_DOMAIN_ID=42
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /dev:/dev # USB camera
+      - zed_resources:/usr/local/zed/resources # persist optimized neural-depth engines
+    # GPU injection via the NVIDIA Container Toolkit (CDI) — the compose
+    # equivalent of `--gpus all`. Requires the host CDI fixes above.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    command: ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedm
+    restart: unless-stopped
+
+  # ── Application: perception / localization / strategy / control + camera bridge ──
+  robot:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.jetson
+      target: soccer-app-image
+    image: soccer-app:jazzy
+    container_name: soccer-app
+    privileged: true # /dev/ttyMCU (STM32 master, CRC16 serial)
+    network_mode: host
+    environment:
+      - ROS_DOMAIN_ID=42
+    volumes:
+      - /dev:/dev
+    # The app is CPU-only today (HSV detector). Uncomment to give it the GPU once
+    # the RF-DETR TensorRT detector lands (report §3.2 of the localization doc):
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    depends_on:
+      - camera
+    command: >
+      ros2 launch soccer_bringup robot.launch.py
+      sim:=false camera:=zed robot_name:=robot_1 player_id:=1
+    restart: unless-stopped
+
+volumes:
+  zed_resources:

@@ -1,19 +1,31 @@
 # Fleet deployment (blueprint §12).
 #
-#   ansible-playbook -i inventory.example.ini deploy.yml -e image_tag=<sha>
+#   # Registry model (CI/self-hosted arm64 runner pushes images to GHCR):
+#   ansible-playbook -i inventory.local.ini deploy.yml -e image_tag=<sha> \
+#     -e ghcr_user=$GHCR_USER -e ghcr_token=$GHCR_TOKEN
 #
-# One command on your laptop SSHes into every robot, pulls the new lean runtime
-# image from GHCR, and restarts the container. Reproducible, no per-robot
-# fiddling. Right-sized for a 1-3 robot fleet (heavier tools are overkill).
+#   # On-device model (images built on each robot with Dockerfile.jetson):
+#   ansible-playbook -i inventory.local.ini deploy.yml \
+#     -e pull_images=false -e registry= -e image_tag=jazzy
+#
+# Deploys the two-container ZED stack proven on JetPack 7.2 / L4T R39.2
+# (docs/zed_jetson_integration.md): a GPU camera-driver container (ZED SDK +
+# zed-ros2-wrapper) and the CPU soccer-app container that bridges the ZED topics
+# onto the generic camera contract. Run provision.yml ONCE first.
 ---
-- name: Deploy MiniBot runtime to the fleet
+- name: Deploy the MiniBot ZED stack to the fleet
   hosts: robots
   become: true
   gather_facts: false
   vars:
-    image: "ghcr.io/robocup/minibot-runtime"
+    registry: "ghcr.io/robocup"
     image_tag: "latest"
-    container_name: minibot
+    pull_images: true
+    # When registry is empty (on-device builds) the tags are bare, e.g. soccer-zed:jazzy.
+    zed_image: "{{ (registry ~ '/') if registry else '' }}soccer-zed"
+    app_image: "{{ (registry ~ '/') if registry else '' }}soccer-app"
+    zed_container: soccer-camera
+    app_container: soccer-app
 
   tasks:
     - name: Log in to the container registry
@@ -21,26 +33,59 @@
         registry_url: ghcr.io
         username: "{{ ghcr_user }}"
         password: "{{ ghcr_token }}" # supplied via --extra-vars or vault, never committed
+      when: pull_images | bool
 
-    - name: Pull the pinned runtime image
+    - name: Pull the pinned images
       community.docker.docker_image:
-        name: "{{ image }}:{{ image_tag }}"
+        name: "{{ item }}:{{ image_tag }}"
         source: pull
         force_source: true
+      loop:
+        - "{{ zed_image }}"
+        - "{{ app_image }}"
+      when: pull_images | bool
 
-    - name: (Re)start the robot container
+    # ── GPU camera-driver container (ZED SDK + zed-ros2-wrapper) ──────────────
+    - name: (Re)start the ZED camera container
       community.docker.docker_container:
-        name: "{{ container_name }}"
-        image: "{{ image }}:{{ image_tag }}"
+        name: "{{ zed_container }}"
+        image: "{{ zed_image }}:{{ image_tag }}"
+        state: started
+        recreate: true
+        restart_policy: unless-stopped
+        network_mode: host # ROS 2 DDS discovery
+        privileged: true # USB ZED Mini
+        # GPU injection via the NVIDIA Container Toolkit (CDI) — equivalent of
+        # `--gpus all`. Requires the host CDI fixes from provision.yml.
+        device_requests:
+          - driver: nvidia
+            count: -1
+            capabilities:
+              - - gpu
+        env:
+          ROS_DOMAIN_ID: "42"
+          NVIDIA_DRIVER_CAPABILITIES: "all"
+        volumes:
+          - /dev:/dev # USB camera
+          - zed_resources:/usr/local/zed/resources # persist neural-depth engines
+        command: ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zedm
+
+    # ── Soccer application container (perception/localization/strategy/control) ─
+    - name: (Re)start the soccer-app container
+      community.docker.docker_container:
+        name: "{{ app_container }}"
+        image: "{{ app_image }}:{{ image_tag }}"
         state: started
         recreate: true
         restart_policy: unless-stopped
         network_mode: host # DDS + GameController UDP
-        privileged: true # access /dev/ttyACM0 (MCU serial)
+        privileged: true # /dev/ttyMCU (STM32 master, CRC16 serial)
         env:
           ROS_DOMAIN_ID: "42"
           ROBOT_NAME: "{{ robot_name }}"
           PLAYER_ID: "{{ player_id }}"
+        volumes:
+          - /dev:/dev
         command: >
           ros2 launch soccer_bringup robot.launch.py
-          sim:=false robot_name:={{ robot_name }} player_id:={{ player_id }}
+          sim:=false camera:=zed robot_name:={{ robot_name }} player_id:={{ player_id }}

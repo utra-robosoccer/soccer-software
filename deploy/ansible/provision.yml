@@ -1,0 +1,125 @@
+# One-time Jetson host provisioning for the ZED + GPU stack (blueprint §12).
+#
+#   ansible-playbook -i inventory.local.ini provision.yml
+#
+# Encodes the host fixes proven during the live JetPack 7.2 / L4T R39.2 bring-up
+# (docs/zed_jetson_integration.md §"Host prerequisites"). Run this ONCE per robot
+# before deploy.yml. It is idempotent — safe to re-run.
+#
+# What it fixes and WHY:
+#   1. nvidia-container-toolkit 1.19.1 ships a buggy `enable-cuda-compat` CDI hook
+#      that panics ("slice bounds out of range [:73]") and aborts every
+#      `--gpus`/CDI container start. We disable just that hook and regenerate the
+#      CDI spec.
+#   2. The container runtime must emit CDI devices (`mode = "cdi"`) so `--gpus all`
+#      / compose `devices: [driver: nvidia]` inject the GPU correctly.
+#   3. On-device colcon builds of the ZED wrapper + TensorRT engines OOM the 8 GB
+#      Orin Nano without swap, so we add an 8 GB swapfile (build hosts only).
+---
+- name: Provision Jetson host for the ZED + GPU container stack
+  hosts: robots
+  become: true
+  gather_facts: true
+  vars:
+    cdi_refresh_env: /etc/nvidia-container-toolkit/nvidia-cdi-refresh.env
+    cdi_spec: /etc/cdi/nvidia.yaml
+    ctk_runtime_config: /etc/nvidia-container-runtime/config.toml
+    manage_swap: true # set false on hosts that only PULL prebuilt images
+    swap_path: /swapfile
+    swap_size: 8G
+
+  handlers:
+    - name: Regenerate the CDI specification
+      ansible.builtin.systemd:
+        name: nvidia-cdi-refresh.service
+        state: restarted
+      listen: refresh cdi
+
+  tasks:
+    # ── Fix 1: disable the buggy enable-cuda-compat CDI hook ──────────────────
+    - name: Disable the broken enable-cuda-compat CDI hook
+      ansible.builtin.lineinfile:
+        path: "{{ cdi_refresh_env }}"
+        create: true
+        owner: root
+        group: root
+        mode: "0644"
+        regexp: "^NVIDIA_CTK_CDI_GENERATE_DISABLED_HOOKS="
+        line: "NVIDIA_CTK_CDI_GENERATE_DISABLED_HOOKS=enable-cuda-compat"
+      notify: refresh cdi
+
+    # ── Fix 2: force the container runtime into CDI mode ──────────────────────
+    - name: Force the NVIDIA container runtime into CDI mode
+      ansible.builtin.lineinfile:
+        path: "{{ ctk_runtime_config }}"
+        regexp: '^\s*mode\s*='
+        line: 'mode = "cdi"'
+        backup: true
+      notify: refresh cdi
+
+    - name: Apply pending CDI regeneration before verifying
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read the regenerated CDI spec
+      ansible.builtin.slurp:
+        src: "{{ cdi_spec }}"
+      register: cdi_spec_raw
+      failed_when: false
+
+    - name: Assert the broken hook is gone from the CDI spec
+      ansible.builtin.assert:
+        that:
+          - cdi_spec_raw.content is defined
+          - "'enable-cuda-compat' not in (cdi_spec_raw.content | b64decode)"
+        success_msg: "CDI spec is clean — GPU containers will start."
+        fail_msg: >
+          enable-cuda-compat is still present in {{ cdi_spec }}.
+          Re-run after confirming nvidia-cdi-refresh.service restarted.
+
+    # ── Fix 3: 8 GB swap so on-device colcon/TensorRT builds don't OOM ────────
+    - name: Create the swapfile
+      ansible.builtin.command: "fallocate -l {{ swap_size }} {{ swap_path }}"
+      args:
+        creates: "{{ swap_path }}"
+      register: swap_created
+      when: manage_swap
+
+    - name: Secure the swapfile
+      ansible.builtin.file:
+        path: "{{ swap_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      when: manage_swap
+
+    - name: Initialise the swap area
+      ansible.builtin.command: "mkswap {{ swap_path }}"
+      when: manage_swap and swap_created is changed
+
+    - name: Persist the swapfile in /etc/fstab
+      ansible.builtin.lineinfile:
+        path: /etc/fstab
+        regexp: '^\S+\s+none\s+swap\s'
+        line: "{{ swap_path }} none swap sw 0 0"
+      when: manage_swap
+
+    - name: Enable the swapfile now
+      ansible.builtin.command: "swapon {{ swap_path }}"
+      when: manage_swap and swap_created is changed
+
+    # ── Verify: Docker default runtime should already be nvidia on JetPack ─────
+    - name: Read /etc/docker/daemon.json
+      ansible.builtin.slurp:
+        src: /etc/docker/daemon.json
+      register: docker_daemon_raw
+      failed_when: false
+
+    - name: Warn if the Docker default runtime is not nvidia
+      ansible.builtin.debug:
+        msg: >
+          WARNING: Docker default-runtime is not 'nvidia'. GPU containers will
+          need an explicit runtime. On JetPack 7.2 this is normally preset; set
+          it in /etc/docker/daemon.json and restart docker if missing.
+      when: >
+        docker_daemon_raw.content is not defined or
+        'nvidia' not in (docker_daemon_raw.content | b64decode)

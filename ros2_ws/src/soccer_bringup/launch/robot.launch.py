@@ -15,9 +15,15 @@ Layers wired here:
   L5  gc_bridge_node
 """
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription
 from launch.conditions import IfCondition
-from launch.substitutions import Command, LaunchConfiguration, PathJoinSubstitution
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import (
+    Command,
+    EqualsSubstitution,
+    LaunchConfiguration,
+    PathJoinSubstitution,
+)
 from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
@@ -28,10 +34,15 @@ def generate_launch_description() -> LaunchDescription:
     player_id = LaunchConfiguration("player_id")
     team_number = LaunchConfiguration("team_number")
     sim = LaunchConfiguration("sim")
+    camera = LaunchConfiguration("camera")
+    camera_model = LaunchConfiguration("camera_model")
 
     description_share = FindPackageShare("soccer_description")
     xacro_file = PathJoinSubstitution([description_share, "urdf", "minibot.urdf.xacro"])
     controllers_yaml = PathJoinSubstitution([description_share, "config", "controllers.yaml"])
+    camera_launch = PathJoinSubstitution(
+        [FindPackageShare("soccer_bringup"), "launch", "camera.launch.py"]
+    )
 
     robot_description = ParameterValue(
         Command(["xacro ", xacro_file, " sim:=", sim]), value_type=str
@@ -64,15 +75,25 @@ def generate_launch_description() -> LaunchDescription:
         # ── L1: MPC reference generator ──
         Node(package="soccer_control", executable="mpc_node", output="screen"),
 
-        # ── Sim-only synthetic camera (stands in for the Isaac camera sensor) ──
+        # ── Camera source (decoupled from the sim/real hardware plugin) ──
+        #   camera:=sim  → synthetic scene (no GPU; stands in for the Isaac sensor)
+        #   camera:=zed  → bridge a real ZED Mini onto the generic camera contract
+        #                  (the ZED wrapper itself runs in the zed-driver container)
         Node(package="soccer_bringup", executable="sim_camera_node",
-             condition=IfCondition(sim), output="screen"),
+             condition=IfCondition(EqualsSubstitution(camera, "sim")), output="screen"),
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([camera_launch]),
+            launch_arguments={"camera_model": camera_model}.items(),
+            condition=IfCondition(EqualsSubstitution(camera, "zed")),
+        ),
 
         # ── L3: perception ──
         Node(package="soccer_perception", executable="detector_node", output="screen"),
         Node(package="soccer_perception", executable="fieldline_node", output="screen"),
-        Node(package="soccer_perception", executable="projection_node",
-             parameters=[{"use_depth": False}], output="screen"),
+        # projection_node prefers ZED depth when camera/depth is flowing and
+        # otherwise falls back to the flat-ground homography automatically
+        # (use_depth defaults to True; harmless in sim where no depth is published).
+        Node(package="soccer_perception", executable="projection_node", output="screen"),
 
         # ── L2 + L3: two-tier localization ──
         Node(package="soccer_localization", executable="ekf_node", output="screen"),
@@ -96,5 +117,9 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("team_number", default_value="1"),
         DeclareLaunchArgument("sim", default_value="true",
                               description="true: sim hardware plugin; false: real MCU serial"),
+        DeclareLaunchArgument("camera", default_value="sim",
+                              description="sim: synthetic camera; zed: bridge a real ZED Mini"),
+        DeclareLaunchArgument("camera_model", default_value="zedm",
+                              description="ZED model when camera:=zed (zedm = ZED Mini)"),
         robot_group,
     ])
