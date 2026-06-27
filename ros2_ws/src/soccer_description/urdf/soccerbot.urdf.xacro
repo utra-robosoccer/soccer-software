@@ -1,15 +1,18 @@
 <?xml version="1.0"?>
 <!--
-  MiniBot — the smallest robot that still exercises every layer of the stack.
+  MiniBot legacy note: this description is the minimal single-joint placeholder
+  (base + neck_pan + camera + imu) used to exercise every layer of the stack. The
+  full humanoid kinematic tree replaces it later; the sim/real boundary below does
+  not change when it does.
 
-    base_link ──(neck_pan: the ONE motor)── camera_mount ── camera_link (the ONE camera)
-        └── imu_link (the ONE IMU)
+    base_link ──(neck_pan: placeholder joint)── camera_mount ── camera_link
+        └── imu_link
 
   The same description is used in simulation and on hardware. The `sim` xacro arg
-  selects which ros2_control hardware plugin is loaded (see minibot.ros2_control.xacro),
+  selects which ros2_control hardware plugin is loaded (see soccerbot.ros2_control.xacro),
   which is the linchpin of sim-to-real parity (blueprint §10).
 -->
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="minibot">
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="soccerbot">
 
   <!-- ARGUMENTS -->
   <!-- sim=true  -> load the simulation hardware interface (Isaac/Mujoco stub) -->
@@ -107,11 +110,12 @@
   </joint>
 
   <!-- ros2_control hardware + interfaces (the sim/real boundary) -->
-  <xacro:include filename="$(find soccer_description)/urdf/minibot.ros2_control.xacro"/>
-  <xacro:minibot_ros2_control
+  <xacro:include filename="$(find soccer_description)/urdf/soccerbot.ros2_control.xacro"/>
+  <xacro:soccerbot_ros2_control
       sim="$(arg sim)"
       serial_port="$(arg serial_port)"
       pan_limit="${pan_limit}"
-      pan_effort="${pan_effort}"/>
+      pan_effort="${pan_effort}"
+      pan_velocity="${pan_velocity}"/>
 
 </robot>

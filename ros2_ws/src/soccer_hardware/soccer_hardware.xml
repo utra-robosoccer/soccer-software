@@ -1,22 +1,25 @@
 <library path="soccer_hardware">
 
-  <class name="soccer_hardware/MinibotSimHardware"
-         type="soccer_hardware::MinibotSimHardware"
+  <class name="soccer_hardware/SoccerbotSimHardware"
+         type="soccer_hardware::SoccerbotSimHardware"
          base_class_type="hardware_interface::SystemInterface">
     <description>
-      Simulation hardware interface for MiniBot. Integrates the single neck_pan
-      joint with a simple second-order model and synthesizes IMU readings.
-      Stands in for the Isaac/Mujoco HardwareInterface in sim-to-real testing.
+      Simulation hardware interface for soccerbot. Integrates each joint with the
+      MIT impedance law the Robostride actuators apply onboard and synthesizes an
+      IMU. Generic over N joints (sized from the URDF). Stands in for the
+      Isaac/Mujoco HardwareInterface in sim-to-real testing.
     </description>
   </class>
 
-  <class name="soccer_hardware/MinibotSerialHardware"
-         type="soccer_hardware::MinibotSerialHardware"
+  <class name="soccer_hardware/SoccerbotSerialHardware"
+         type="soccer_hardware::SoccerbotSerialHardware"
          base_class_type="hardware_interface::SystemInterface">
     <description>
-      Real hardware interface for MiniBot. Streams position/effort commands to
-      the STM32/Teensy MCU over serial (CRC16-framed, mirroring soccer-firmware),
-      reads back joint state + IMU, and faults if the MCU heartbeat goes silent.
+      Real hardware interface for soccerbot. Streams a full MIT impedance command
+      (q*, qd*, kp, kd, tau_ff) per joint to the Master STM32 over USB-CDC
+      (COBS-framed, CRC16-CCITT), reads back per-joint state plus a body IMU, and
+      faults if the Master heartbeat goes silent. Contract:
+      docs/architecture/jetson_master_protocol.md.
     </description>
   </class>
 

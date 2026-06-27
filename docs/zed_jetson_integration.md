@@ -1,7 +1,7 @@
 # ZED Mini + Jetson Integration — Implementation Report
 
 > **What this is.** A justified, as-built record of the changes made to
-> `soccer-software` so the repository mirrors the **proven** ZED Mini + ROS 2
+> `soccer-bot` so the repository mirrors the **proven** ZED Mini + ROS 2
 > bring-up on the Jetson Orin Nano (JetPack 7.2 / L4T R39.2). It documents the
 > findings, the design decisions (with rationale and the alternatives rejected),
 > every file changed, and the on-device verification procedure.
@@ -366,7 +366,7 @@ Build the two images on the Jetson (the camera image `robosoccer-zed-ros:jazzy`
 from the journey is equivalent; here we build via the repo's Dockerfile):
 
 ```bash
-cd ~/soccer-software      # the repo on the robot
+cd ~/soccer-bot      # the repo on the robot
 
 # Camera driver image (~19 GB; uses swap from provision.yml).
 sudo docker build -f deploy/docker/Dockerfile.jetson \

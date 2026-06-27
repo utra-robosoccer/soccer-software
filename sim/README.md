@@ -20,7 +20,7 @@ robot only ever sees the `.onnx`/`.engine` artifact (blueprint §3.2).
 ## Layout
 
 ```text
-tasks/      minibot_reach_env.py (Isaac Lab task + numpy fallback) · domain_randomization.py
+tasks/      soccerbot_reach_env.py (Isaac Lab task + numpy fallback) · domain_randomization.py
 export/     export_onnx.py  (policy -> ONNX, the artifact the controller loads)
 assets/     USD models (Git LFS) — mirrors soccer_description URDF
 train_residual.py   end-to-end: train (fallback ES) -> save weights

@@ -4,7 +4,7 @@
   <name>soccer_strategy</name>
   <version>0.1.0</version>
   <description>
-    L4 strategy for MiniBot (blueprint §6): a per-robot Behavior Tree
+    L4 strategy for soccerbot (blueprint §6): a per-robot Behavior Tree
     (BehaviorTree.CPP, Groot2-debuggable) plus a decentralized role auction — no
     master. Each robot bids on roles (cost = distance to ball), independently
     computes the same assignment, and re-bids automatically if a teammate drops.

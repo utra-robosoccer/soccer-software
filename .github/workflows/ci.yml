@@ -53,17 +53,11 @@ jobs:
       - run: pip install ruff
       - run: ruff check ros2_ws/src sim tools
 
-  # ── 3. Firmware build (host unit tests of the 1 kHz control math) ──
-  firmware-build:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build host-side firmware unit tests
-        working-directory: firmware/motor_controller
-        run: |
-          cmake -S . -B build -DBUILD_HOST_TESTS=ON
-          cmake --build build
-          ctest --test-dir build --output-on-failure
+  # ── 3. Firmware ──
+  # Firmware lives in the `soccer-firmware/` submodule (STM32CubeIDE projects for
+  # the Master/Slave + Robostride CAN actuators). It has no host-testable CMake
+  # target yet, so it is not built in cloud CI. Add a job here once the firmware
+  # team migrates to a CMake build (see soccer-firmware).
 
   # ── 4. Build + push lean arm64 runtime image (only on main) ──
   #
@@ -75,7 +69,7 @@ jobs:
   # It is built ON the Jetson (or a self-hosted arm64 runner) and deployed via
   # `deploy/ansible/` — see docs/zed_jetson_integration.md.
   docker-image:
-    needs: [ros2-build-test, python-lint, firmware-build]
+    needs: [ros2-build-test, python-lint]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     steps:
@@ -95,4 +89,4 @@ jobs:
           file: deploy/docker/Dockerfile.runtime
           platforms: linux/arm64
           push: true
-          tags: ghcr.io/${{ github.repository }}/minibot-runtime:${{ github.sha }}
+          tags: ghcr.io/${{ github.repository }}/soccerbot-runtime:${{ github.sha }}

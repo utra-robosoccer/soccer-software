@@ -13,7 +13,7 @@
 # zed-ros2-wrapper) and the CPU soccer-app container that bridges the ZED topics
 # onto the generic camera contract. Run provision.yml ONCE first.
 ---
-- name: Deploy the MiniBot ZED stack to the fleet
+- name: Deploy the soccerbot ZED stack to the fleet
   hosts: robots
   become: true
   gather_facts: false

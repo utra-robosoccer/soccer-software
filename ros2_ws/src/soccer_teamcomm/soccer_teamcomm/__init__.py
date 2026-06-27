@@ -1,1 +1,1 @@
-"""MiniBot decentralized team communication package."""
+"""Soccerbot decentralized team communication package."""

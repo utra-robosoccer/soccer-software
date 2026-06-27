@@ -1,1 +1,1 @@
-"""MiniBot launch + sim helpers."""
+"""Soccerbot launch + sim helpers."""

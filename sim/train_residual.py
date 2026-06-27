@@ -1,6 +1,6 @@
 """Train the residual policy (blueprint §10).
 
-The production run is GPU-parallel PPO in Isaac Lab on ``MinibotReachEnvCfg``.
+The production run is GPU-parallel PPO in Isaac Lab on ``SoccerbotReachEnvCfg``.
 For portability this script ships a tiny **evolution-strategies** trainer on the
 CPU fallback env so the *entire* train -> export -> deploy pipeline is runnable
 without Isaac or a GPU. Either way the output is a small MLP with the same
@@ -15,7 +15,7 @@ import os
 
 import numpy as np
 
-from sim.tasks.minibot_reach_env import ACT_DIM, OBS_DIM, RESIDUAL_LIMIT, NumpyReachEnv
+from sim.tasks.soccerbot_reach_env import ACT_DIM, OBS_DIM, RESIDUAL_LIMIT, NumpyReachEnv
 
 HIDDEN = 16
 

@@ -1,35 +1,40 @@
-# soccer-software — MiniBot reference stack
+# soccer-bot — RoboCup humanoid software stack
 
-A **minimal but complete** reference implementation of the RoboCup Humanoid software
-architecture described in `docs/architecture/`. It is intentionally scaled down to the
-smallest robot that can still exercise **every layer** of the real system:
+A **complete, layered** reference implementation of the RoboCup Humanoid software
+architecture described in `docs/architecture/`. Every layer of the real system is
+present and wired through the **same** package boundaries, `ros2_control`
+abstraction, and DevOps flow used on the full robot.
 
-> **MiniBot** = **one motor** (`neck_pan` joint) · **one camera** (monocular) · **one IMU**.
+> The robot model is currently a **minimal placeholder** — one `neck_pan` joint ·
+> one monocular camera · one IMU — deliberately the smallest thing that still
+> exercises **every layer**.
 
-Despite its size, MiniBot implements the full layered stack — from the 1 kHz real-time
-firmware loop up to the GameController mission layer — using the exact same package
-boundaries, `ros2_control` abstraction, and DevOps flow we use on the full robot. Swapping
-MiniBot for the 20-DOF humanoid is a matter of growing the URDF and policies, **not**
-re-architecting.
+Growing the placeholder into the full humanoid is a matter of expanding the URDF
+and policies, **not** re-architecting. Actuation is provided by **Robostride**
+quasi-direct-drive actuators that close the impedance loop **onboard** (MIT mode):
+the Jetson streams full MIT setpoints (`q*, qd*, kp, kd, τ_ff`) to an **STM32
+Master** (safety + aggregation) over USB-CDC, which bridges to the actuators over
+CAN. See [docs/architecture/jetson_master_protocol.md](docs/architecture/jetson_master_protocol.md).
 
 ## The layered architecture (frequency domains)
 
-| Layer                  | Rate               | Package(s)                           | Runs on |
-| ---------------------- | ------------------ | ------------------------------------ | ------- |
-| L5 Mission             | ~2 Hz              | `game_controller_bridge`             | Jetson  |
-| L4 Strategy            | 5–20 Hz            | `soccer_strategy`, `soccer_teamcomm` | Jetson  |
-| L3 Perception          | 30–60 Hz           | `soccer_perception`                  | Jetson  |
-| L3/L2 Localization     | 30–60 / 100–400 Hz | `soccer_localization` (MCL + EKF)    | Jetson  |
-| L1 Whole-body control  | 50–100 Hz          | `soccer_control` (MPC + residual RL) | Jetson  |
-| L0 Real-time actuation | **1000 Hz**        | `firmware/motor_controller`          | MCU     |
+| Layer                  | Rate               | Package(s)                                                         | Runs on          |
+| ---------------------- | ------------------ | ------------------------------------------------------------------ | ---------------- |
+| L5 Mission             | ~2 Hz              | `game_controller_bridge`                                           | Jetson           |
+| L4 Strategy            | 5–20 Hz            | `soccer_strategy`, `soccer_teamcomm`                               | Jetson           |
+| L3 Perception          | 30–60 Hz           | `soccer_perception`                                                | Jetson           |
+| L3/L2 Localization     | 30–60 / 100–400 Hz | `soccer_localization` (MCL + EKF)                                  | Jetson           |
+| L1 Whole-body control  | 50–100 Hz          | `soccer_control` (MPC + residual RL)                               | Jetson           |
+| L0 Real-time actuation | actuator onboard   | `soccer-firmware/` submodule (STM32 Master/Slave → Robostride CAN) | STM32 + actuator |
 
 The **cardinal rule**: slow cognition (vision, strategy) must never block the fast balance
-loop. Each layer degrades gracefully — a crash in perception can't stall the MCU safety loop.
+loop. Each layer degrades gracefully — a crash in perception can't stall the actuator's
+onboard control loop.
 
 ## Repository layout
 
 ```text
-soccer-software/
+soccer-bot/
 ├── .github/workflows/        # CI: build, lint, test, multi-arch image
 ├── docs/                     # architecture blueprints + IMPLEMENTATION.md
 ├── ros2_ws/src/              # ROS 2 workspace (deployed to robots)
@@ -43,7 +48,7 @@ soccer-software/
 │   ├── soccer_teamcomm/      # [Py]  decentralized world model + role bids
 │   ├── game_controller_bridge/ # [Py] UDP 3838/3939 ↔ /gc/game_state
 │   └── soccer_bringup/       # launch + params + per-robot namespacing
-├── firmware/motor_controller/  # [C] micro-ROS 1 kHz PD + watchdog
+├── soccer-firmware/          # [submodule] STM32 Master/Slave → Robostride CAN actuators
 ├── sim/                      # Isaac Lab task + ONNX→TensorRT export
 ├── hardware/                 # CAD / PCB placeholders (Git LFS)
 ├── deploy/                   # docker + compose + ansible
@@ -78,7 +83,7 @@ cd deploy/compose && docker compose -f sim.compose.yaml up
 
 - **ROS 2 Jazzy Jalisco** (LTS → 2029) · Ubuntu 24.04
 - **Jetson Orin NX / Thor** onboard · **RTX** training workstation
-- **STM32 / Teensy** MCU for the 1 kHz loop (micro-ROS)
+- **STM32 Master/Slave** bridge → **Robostride CAN** actuators (onboard MIT impedance)
 
 ## License
 

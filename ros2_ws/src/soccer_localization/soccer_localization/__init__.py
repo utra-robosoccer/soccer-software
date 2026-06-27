@@ -1,1 +1,1 @@
-"""MiniBot two-tier localization package."""
+"""Soccerbot two-tier localization package."""

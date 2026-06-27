@@ -1,1 +1,1 @@
-"""MiniBot RL tasks (Isaac Lab)."""
+"""Soccerbot RL tasks (Isaac Lab)."""

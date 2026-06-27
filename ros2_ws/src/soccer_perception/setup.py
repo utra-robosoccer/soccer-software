@@ -14,7 +14,7 @@ setup(
     zip_safe=True,
     maintainer="RoboCup Humanoid Team",
     maintainer_email="team@robocup.example",
-    description="MiniBot perception: detector + field-line segmentation + 3D projection.",
+    description="Soccerbot perception: detector + field-line segmentation + 3D projection.",
     license="BSD-3-Clause",
     tests_require=["pytest"],
     entry_points={

@@ -55,7 +55,7 @@ ros2 launch soccer_bringup robot.launch.py sim:=true
 The container mounts your Windows repo as a volume (`-v ../..:/ws`). Any edits on Windows are **instantly visible** inside the container — no manual sync needed.
 
 ```
-Windows (C:\dev\soccer-software)
+Windows (C:\dev\soccer-bot)
           ↓ (Docker volume mount)
 Linux container (/ws)
 ```

@@ -1,4 +1,4 @@
-# MiniBot — Implementation Walkthrough
+# soccerbot — Implementation Walkthrough
 
 > **What this is.** A complete, working scaffold of the new RoboCup Humanoid
 > software architecture (from `docs/architecture/new_architecture_blueprint.md`
@@ -11,16 +11,16 @@
 
 ---
 
-## 1. The robot we built: "MiniBot"
+## 1. The robot we built: placeholder soccerbot
 
-| Real humanoid           | MiniBot reduction                       | Still exercises                                            |
-| ----------------------- | --------------------------------------- | ---------------------------------------------------------- |
-| 20+ actuators           | **1 motor** (`neck_pan` revolute joint) | `ros2_control`, MPC reference, residual RL, 1 kHz MCU loop |
-| Multi-camera + depth    | **1 monocular camera**                  | detector, field-line seg, 3D projection                    |
-| Full IMU + foot sensors | **1 body IMU**                          | Tier-1 EKF odometry                                        |
-| Walk / kick / get-up    | **scan / track the ball**               | Behavior Tree, role auction, MPC modes                     |
+| Real humanoid           | soccerbot placeholder                   | Still exercises                                         |
+| ----------------------- | --------------------------------------- | ------------------------------------------------------- |
+| 20+ actuators           | **1 motor** (`neck_pan` revolute joint) | `ros2_control`, MPC reference, residual RL, onboard MIT |
+| Multi-camera + depth    | **1 monocular camera**                  | detector, field-line seg, 3D projection                 |
+| Full IMU + foot sensors | **1 body IMU**                          | Tier-1 EKF odometry                                     |
+| Walk / kick / get-up    | **scan / track the ball**               | Behavior Tree, role auction, MPC modes                  |
 
-MiniBot's job: stand on a small field, **pan its camera to find and track the
+The placeholder's job: stand on a small field, **pan its camera to find and track the
 ball**, while **localizing on the field** and obeying the **GameController** —
 coordinating roles with teammates through a **decentralized auction**. That
 single behavior touches every layer L0–L5.
@@ -42,7 +42,7 @@ flowchart LR
 
 The cardinal rule from the blueprint — **isolate loops by frequency so slow
 cognition never blocks the fast balance loop** — is realized as concrete ROS 2
-packages and one firmware target. Each box below is a real directory in this repo.
+packages and the `soccer-firmware` submodule. Each box below is a real directory in this repo.
 
 ```mermaid
 flowchart TB
@@ -72,9 +72,9 @@ flowchart TB
         MPC["soccer_control<br/>mpc_node (reference)"]:::fast
         RLP["soccer_control<br/>ResidualRLController (TensorRT)"]:::fast
     end
-    subgraph L0["L0 REAL-TIME · 1000 Hz (MCU)"]
-        PD["firmware/motor_controller<br/>PD/torque + watchdog"]:::rt
-        MOT["neck_pan motor · encoder · IMU"]:::rt
+    subgraph L0["L0 REAL-TIME · onboard (Robostride actuator)"]
+        PD["soccer-firmware Master/Slave<br/>safety + CAN-FD bridge"]:::rt
+        MOT["neck_pan Robostride · encoder · IMU<br/>onboard MIT impedance"]:::rt
     end
 
     GC --> GCB --> BT
@@ -85,22 +85,23 @@ flowchart TB
     MPC --> RLP
     EKF --> MPC
     EKF --> MCL
-    RLP -->|"joint target @ ~50 Hz"| PD
-    PD -->|"torque @ 1 kHz"| MOT
+    RLP -->|"MIT setpoint @ ~50 Hz"| PD
+    PD -->|"MIT cmd (CAN-FD)"| MOT
     MOT -->|"q, qd, τ, IMU"| EKF
     MOT --> PD
 ```
 
-A crash in `soccer_perception` (L3) cannot stall `soccer_control` (L1) or the MCU
-loop (L0): they are separate processes/targets communicating over topics, and the
-MCU watchdog zeroes torque independently if the Jetson goes silent.
+A crash in `soccer_perception` (L3) cannot stall `soccer_control` (L1) or the
+actuator's onboard loop (L0): they are separate processes/targets communicating
+over topics, and the Master watchdog zeroes torque independently if the Jetson
+goes silent.
 
 ---
 
 ## 3. Repository map (what lives where)
 
 ```text
-soccer-software/
+soccer-bot/
 ├── .github/workflows/ci.yml      # build · lint · test · multi-arch image
 ├── docs/
 │   ├── IMPLEMENTATION.md          # ← this file
@@ -116,7 +117,7 @@ soccer-software/
 │   ├── soccer_teamcomm/           # [Py]   TeamData over DDS (no master)
 │   ├── game_controller_bridge/    # [Py]   UDP 3838/3939 ↔ /gc/game_state
 │   └── soccer_bringup/            # [launch] per-robot namespacing + sim camera
-├── firmware/motor_controller/     # [C]    1 kHz PD + watchdog (host-testable)
+├── soccer-firmware/                # [submodule] STM32 Master/Slave → Robostride CAN
 ├── sim/                           # [Py]   Isaac Lab task + DR + ONNX export
 ├── hardware/                      # CAD/PCB placeholders (Git LFS)
 ├── deploy/                        # Docker + compose + Ansible + MCU toolchain
@@ -176,17 +177,17 @@ flowchart LR
     end
     BND{{"ros2_control<br/>command/state interfaces<br/>neck_pan + imu_sensor"}}
     SAME --> BND
-    BND -->|"sim:=true"| SIMHW["MinibotSimHardware<br/>(integrates joint in SW)"]:::sim
-    BND -->|"sim:=false"| REALHW["MinibotSerialHardware<br/>(CRC16 serial to MCU)"]:::real
-    REALHW <-->|"1 kHz"| MCU["firmware/motor_controller"]:::real
+    BND -->|"sim:=true"| SIMHW["SoccerbotSimHardware<br/>(integrates joint in SW)"]:::sim
+    BND -->|"sim:=false"| REALHW["SoccerbotSerialHardware<br/>(COBS/CRC16 USB-CDC)"]:::real
+    REALHW <-->|"USB-CDC"| MCU["soccer-firmware Master"]:::real
 ```
 
 - Both plugins live in `soccer_hardware` and export the **same** interfaces:
-  `neck_pan` (`position`+`effort` command; `position`/`velocity`/`effort` state)
-  and a 10-channel `imu_sensor`. See
-  [minibot.ros2_control.xacro](../ros2_ws/src/soccer_description/urdf/minibot.ros2_control.xacro).
-- The real plugin speaks the **same CRC16-framed binary protocol** as the
-  existing `soccer-firmware` repo, so the Jetson↔MCU contract is faithful.
+  `neck_pan` (`position`/`velocity`/`kp`/`kd`/`effort` command — the full MIT
+  tuple; `position`/`velocity`/`effort` state) and a 10-channel `imu_sensor`. See
+  [soccerbot.ros2_control.xacro](../ros2_ws/src/soccer_description/urdf/soccerbot.ros2_control.xacro).
+- The real plugin speaks the **same COBS/CRC16-framed protocol** as the
+  `soccer-firmware` Master, so the Jetson↔Master contract is faithful.
 - **`effort` is a first-class state interface** because the residual-RL
   observation needs measured torque (τ from current sense) — non-negotiable for
   sim-to-real parity (blueprint §9).
@@ -212,27 +213,28 @@ flowchart TB
         POL["policy π(obs) → Δq"]:::rl
         SUM["q_target = q* + clamp(Δq, ±0.20)"]:::rl
     end
-    subgraph LOW["firmware · 1000 Hz · MCU"]
-        PD["τ = kp(q*-q)+kd(qd*-qd)+τ_ff<br/>+ watchdog"]:::rt
+    subgraph LOW["actuator · onboard · Robostride"]
+        PD["τ = kp(q*-q)+kd(qd*-qd)+τ_ff<br/>(onboard impedance)"]:::rt
     end
     GOAL --> MPC --> SUM
     POL --> SUM
-    SUM -->|"position cmd"| PD --> MOT["neck_pan"]
+    SUM -->|"MIT setpoint"| PD --> MOT["neck_pan"]
     MOT -->|"q, qd, τ"| POL
     MOT --> MPC
 ```
 
-| Loop              | Frequency   | Where               | File                                                                                       |
-| ----------------- | ----------- | ------------------- | ------------------------------------------------------------------------------------------ |
-| MPC reference     | 50 Hz       | Jetson (C++)        | [mpc_node.cpp](../ros2_ws/src/soccer_control/src/mpc_node.cpp)                             |
-| Residual policy   | 100 Hz      | Jetson (C++ plugin) | [residual_rl_controller.cpp](../ros2_ws/src/soccer_control/src/residual_rl_controller.cpp) |
-| **PD + watchdog** | **1000 Hz** | **MCU**             | [pd_controller.c](../firmware/motor_controller/src/pd_controller.c)                        |
+| Loop              | Frequency   | Where                   | File                                                                                       |
+| ----------------- | ----------- | ----------------------- | ------------------------------------------------------------------------------------------ |
+| MPC reference     | 50 Hz       | Jetson (C++)            | [mpc_node.cpp](../ros2_ws/src/soccer_control/src/mpc_node.cpp)                             |
+| Residual policy   | 100 Hz      | Jetson (C++ plugin)     | [residual_rl_controller.cpp](../ros2_ws/src/soccer_control/src/residual_rl_controller.cpp) |
+| **MIT impedance** | **onboard** | **Robostride actuator** | `soccer-firmware` Master bridge (CAN-FD)                                                   |
 
 **Why bounded residual, not end-to-end:** the residual is **hard-clamped to
 ±0.20 rad** in the controller, so a misbehaving policy can never destabilize the
 joint. With no policy loaded the controller emits a **zero residual → pure MPC**,
 the safe default before training. This is the corrected frequency contract from
-the blueprint (the policy is ~50–100 Hz; only the PD is 1 kHz, on the MCU).
+the blueprint (the policy is ~50–100 Hz; the MIT impedance loop runs onboard the
+Robostride actuator).
 
 ---
 
@@ -413,28 +415,30 @@ losing one robot degrades the team gracefully — no single point of failure.
 
 ---
 
-## 11. The 1 kHz firmware (blueprint §9)
+## 11. The motor firmware (`soccer-firmware` submodule, blueprint §9)
 
-`firmware/motor_controller` is the **only hard-real-time** code, destined for the
-MCU — not the Jetson (Linux is not hard-real-time).
+The hard-real-time code lives in the **`soccer-firmware`** submodule (STM32
+Master/Slave). On our side the Master **aggregates** all joints, enforces the
+**watchdog**, and **bridges** to the actuators over CAN-FD. The impedance law
+itself runs **onboard each Robostride actuator** — we only stream setpoints.
 
 ```mermaid
 flowchart LR
     classDef rt fill:#ffc9c9,stroke:#b00,stroke-width:2px,color:#000;
-    RX["recv MotorCmd<br/>(CRC16 check)"]:::rt --> WD["feed watchdog"]:::rt
-    WD --> PD["pd_compute_torque<br/>(MIT impedance, clamped)"]:::rt
-    PD --> SILENT{"bus silent?"}:::rt
+    RX["recv MIT cmd frame<br/>(COBS + CRC16)"]:::rt --> WD["feed watchdog"]:::rt
+    WD --> SILENT{"bus silent?"}:::rt
     SILENT -->|yes| ZERO["τ = 0 (safe halt)"]:::rt
-    SILENT -->|no| APPLY["apply τ"]:::rt
-    APPLY --> TX["send MotorState<br/>(q, qd, τ, temp)"]:::rt
+    SILENT -->|no| FWD["forward MIT setpoints<br/>over CAN-FD"]:::rt
+    FWD --> ACT["Robostride: onboard<br/>impedance + FOC"]:::rt
+    ACT --> TX["return JointState + IMU<br/>(q, qd, τ, temp, fault)"]:::rt
 ```
 
-- The PD/MIT law and watchdog are **portable C** with **host unit tests**
-  ([test_pd_controller.c](../firmware/motor_controller/test/test_pd_controller.c))
-  that CI runs — torque clamping, joint-limit respect, and watchdog trip are all
-  verified without hardware.
-- The watchdog zeroes torque on bus silence **independently of the Jetson** — the
-  last line of safety.
+- The Master watchdog zeroes torque on bus silence **independently of the
+  Jetson** — the last line of safety. The host plugin (`SoccerbotSerialHardware`)
+  adds a second, redundant watchdog.
+- Firmware unit tests now live in the **`soccer-firmware`** submodule, not this
+  repo. The wire contract is specified in
+  [jetson_master_protocol.md](architecture/jetson_master_protocol.md).
 
 ---
 
@@ -524,16 +528,16 @@ loop. Meanwhile `fieldline_node` + `mcl_node` localize on the field, and
 
 ## 15. What was verified
 
-| Check                             | How                                   | Result              |
-| --------------------------------- | ------------------------------------- | ------------------- |
-| All Python compiles               | `py_compile` over the tree            | ✅                  |
-| Camera projection math            | depth + flat-ground + horizon cases   | ✅                  |
-| Field likelihood map              | on-line ≫ off-line likelihood         | ✅ (1.000 vs 0.000) |
-| GameController protocol           | pack/parse round-trip + penalties     | ✅                  |
-| Sim train → save                  | numpy env + ES + weights file         | ✅                  |
-| MCL convergence + explorer reseed | pytest (`test_mcl.py`)                | ✅ logic            |
-| Role auction (4 cases)            | gtest (`test_role_auction.cpp`)       | ✅ logic            |
-| Firmware control + watchdog       | C host tests (`test_pd_controller.c`) | ✅ logic            |
+| Check                             | How                                 | Result              |
+| --------------------------------- | ----------------------------------- | ------------------- |
+| All Python compiles               | `py_compile` over the tree          | ✅                  |
+| Camera projection math            | depth + flat-ground + horizon cases | ✅                  |
+| Field likelihood map              | on-line ≫ off-line likelihood       | ✅ (1.000 vs 0.000) |
+| GameController protocol           | pack/parse round-trip + penalties   | ✅                  |
+| Sim train → save                  | numpy env + ES + weights file       | ✅                  |
+| MCL convergence + explorer reseed | pytest (`test_mcl.py`)              | ✅ logic            |
+| Role auction (4 cases)            | gtest (`test_role_auction.cpp`)     | ✅ logic            |
+| Firmware control + watchdog       | in `soccer-firmware` submodule      | — moved out         |
 
 > Note: `colcon build` and the C++/gtest suites require a ROS 2 Jazzy + Linux
 > toolchain (the CI image); on this Windows host the ROS-free Python/numeric logic
@@ -544,31 +548,31 @@ loop. Meanwhile `fieldline_node` + `mcl_node` localize on the field, and
 
 ## 16. Mapping every blueprint/report concept to where it lives
 
-| Concept (source)                                                 | Realized in                                                  |
-| ---------------------------------------------------------------- | ------------------------------------------------------------ |
-| Layered frequency domains (BP §2)                                | the L0–L5 package split                                      |
-| `ros2_control` sim/real boundary (BP §10)                        | `soccer_hardware` two plugins + `minibot.ros2_control.xacro` |
-| Hierarchical MPC + bounded residual RL (BP §4)                   | `soccer_control` (`mpc_node` + `ResidualRLController`)       |
-| 1 kHz PD on MCU + watchdog (BP §4, §9)                           | `firmware/motor_controller`                                  |
-| Current-sense τ in state vector (BP §9)                          | `effort` state interface end-to-end                          |
-| Proprio/extero split (BP §5)                                     | `ekf_node` (proprio) vs `soccer_perception` (extero)         |
-| RF-DETR detector, swappable (report §3.2)                        | `detector_node` (HSV fallback, RF-DETR target)               |
-| Field-line semantic seg (report §3.2)                            | `fieldline_node`                                             |
-| ZED depth projection (report §6)                                 | `projection_node`                                            |
-| Tier-1 EKF odometry (report §3)                                  | `ekf_node`                                                   |
-| Tier-2 MCL + likelihood field + explorer particles (report §3.1) | `mcl_node` + `field_model.py`                                |
-| Behavior Trees + Groot2 (BP §6)                                  | `soccer_strategy` + `trees/*.xml`                            |
-| Decentralized role auction, no master (BP §6, §8)                | `role_auction.cpp` + `/team_data`                            |
-| GameController UDP 3838/3939 (BP §7)                             | `game_controller_bridge`                                     |
-| Per-robot namespacing (BP §8, §11)                               | `soccer_bringup` launch files                                |
-| Isaac Lab + DR + teacher/student + ONNX (BP §10)                 | `sim/`                                                       |
-| Monorepo + Git LFS (BP §11)                                      | repo layout + `.gitattributes`                               |
-| Docker + GHCR + Ansible + CI (BP §12)                            | `deploy/` + `.github/workflows/ci.yml`                       |
-| ROS 2 Jazzy target (BP §3.1)                                     | CI image, Dockerfiles, package manifests                     |
+| Concept (source)                                                 | Realized in                                                    |
+| ---------------------------------------------------------------- | -------------------------------------------------------------- |
+| Layered frequency domains (BP §2)                                | the L0–L5 package split                                        |
+| `ros2_control` sim/real boundary (BP §10)                        | `soccer_hardware` two plugins + `soccerbot.ros2_control.xacro` |
+| Hierarchical MPC + bounded residual RL (BP §4)                   | `soccer_control` (`mpc_node` + `ResidualRLController`)         |
+| MIT impedance onboard + Master watchdog (BP §4, §9)              | Robostride actuator + `soccer-firmware`                        |
+| Current-sense τ in state vector (BP §9)                          | `effort` state interface end-to-end                            |
+| Proprio/extero split (BP §5)                                     | `ekf_node` (proprio) vs `soccer_perception` (extero)           |
+| RF-DETR detector, swappable (report §3.2)                        | `detector_node` (HSV fallback, RF-DETR target)                 |
+| Field-line semantic seg (report §3.2)                            | `fieldline_node`                                               |
+| ZED depth projection (report §6)                                 | `projection_node`                                              |
+| Tier-1 EKF odometry (report §3)                                  | `ekf_node`                                                     |
+| Tier-2 MCL + likelihood field + explorer particles (report §3.1) | `mcl_node` + `field_model.py`                                  |
+| Behavior Trees + Groot2 (BP §6)                                  | `soccer_strategy` + `trees/*.xml`                              |
+| Decentralized role auction, no master (BP §6, §8)                | `role_auction.cpp` + `/team_data`                              |
+| GameController UDP 3838/3939 (BP §7)                             | `game_controller_bridge`                                       |
+| Per-robot namespacing (BP §8, §11)                               | `soccer_bringup` launch files                                  |
+| Isaac Lab + DR + teacher/student + ONNX (BP §10)                 | `sim/`                                                         |
+| Monorepo + Git LFS (BP §11)                                      | repo layout + `.gitattributes`                                 |
+| Docker + GHCR + Ansible + CI (BP §12)                            | `deploy/` + `.github/workflows/ci.yml`                         |
+| ROS 2 Jazzy target (BP §3.1)                                     | CI image, Dockerfiles, package manifests                       |
 
 ---
 
-## 17. Growing MiniBot into the full humanoid
+## 17. Growing the placeholder into the full humanoid
 
 Because the architecture — not just the code — is what was scaffolded, scaling up
 is **additive**:
@@ -577,8 +581,8 @@ is **additive**:
    `ros2_control` block grows, nothing above it changes.
 2. **Control**: replace `mpc_node`'s single-joint reference with a real
    ZMP/whole-body MPC; the `ResidualRLController` interface is unchanged.
-3. **Firmware**: one MCU command/state pair per joint over CAN; the protocol and
-   watchdog are already there.
+3. **Firmware**: one MIT command/state pair per joint; the Master aggregates all
+   joints over CAN-FD — the protocol and watchdog are already there.
 4. **Perception**: drop RF-DETR + a seg net into the two existing nodes; contracts
    unchanged.
 5. **Strategy**: richer trees (`approach → align → kick`); the auction and gating

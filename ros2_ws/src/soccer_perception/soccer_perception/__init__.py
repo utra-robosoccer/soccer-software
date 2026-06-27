@@ -1,1 +1,1 @@
-"""MiniBot L3 perception package."""
+"""Soccerbot L3 perception package."""

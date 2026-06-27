@@ -484,8 +484,8 @@ no Jetson required:
 cd ros2_ws && colcon build --symlink-install && colcon test && colcon test-result --verbose
 colcon test --packages-select soccer_perception soccer_localization
 
-# Firmware control law + watchdog (portable C host tests, no MCU)
-cmake -S firmware/motor_controller -B build && cmake --build build && ctest --test-dir build
+# Firmware control law + watchdog tests now live in the soccer-firmware submodule
+#   (see soccer-firmware/scripts/README.md for its STM32CubeIDE build / flash flow)
 
 # Pure logic without a ROS graph (Mac/Win friendly)
 pytest ros2_ws/src/soccer_localization/test/test_mcl.py

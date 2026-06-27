@@ -1,0 +1,3 @@
+[submodule "soccer-firmware"]
+	path = soccer-firmware
+	url = https://github.com/utra-robosoccer/soccer-firmware.git

@@ -3,7 +3,7 @@
 
 Thin wrapper around OpenCV's chessboard calibration to produce the `fx, fy, cx,
 cy` used by `soccer_perception/camera_model.py`. Point it at a folder of
-chessboard images captured from the MiniBot camera.
+chessboard images captured from the soccerbot camera.
 
     python tools/calibrate_camera.py --images calib/*.jpg --cols 9 --rows 6 --square 0.025
 """

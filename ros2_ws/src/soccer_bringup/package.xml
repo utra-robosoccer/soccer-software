@@ -4,7 +4,7 @@
   <name>soccer_bringup</name>
   <version>0.1.0</version>
   <description>
-    Launch + parameters + per-robot namespacing for MiniBot (blueprint §8, §11).
+    Launch + parameters + per-robot namespacing for soccerbot (blueprint §8, §11).
     robot.launch.py brings up ONE fully-namespaced robot (the same graph in sim
     or on hardware via the `sim` arg); team.launch.py replicates it for N robots.
     Ships a lightweight synthetic camera so the whole stack runs without Isaac.

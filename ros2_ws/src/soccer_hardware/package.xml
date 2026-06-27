@@ -4,10 +4,12 @@
   <name>soccer_hardware</name>
   <version>0.1.0</version>
   <description>
-    ros2_control SystemInterface plugins for MiniBot — the single sim/real
-    abstraction boundary (blueprint §9-10). MinibotSimHardware integrates the
-    joint in software (stands in for Isaac/Mujoco); MinibotSerialHardware streams
-    commands to the MCU that closes the 1 kHz PD loop and reads back state + IMU.
+    ros2_control SystemInterface plugins for soccerbot — the single sim/real
+    abstraction boundary (blueprint §9-10). SoccerbotSimHardware integrates each
+    joint with the MIT impedance law in software (stands in for Isaac/Mujoco);
+    SoccerbotSerialHardware streams a full MIT command (q*, qd*, kp, kd, tau_ff)
+    per joint to the Master STM32 over USB-CDC and reads back state + IMU. The
+    Robostride actuators close the torque loop onboard.
   </description>
 
   <maintainer email="team@robocup.example">RoboCup Humanoid Team</maintainer>

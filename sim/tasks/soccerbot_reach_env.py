@@ -1,4 +1,4 @@
-"""MiniBot "reach/track" residual-RL task.
+"""Soccerbot "reach/track" residual-RL task.
 
 The policy learns the **bounded residual** Δq the controller adds on top of the
 MPC reference so the neck_pan joint tracks a commanded bearing despite the
@@ -10,7 +10,7 @@ feeds at runtime, so the trained policy drops straight in:
 
 Two implementations share one observation/return contract:
 
-* ``MinibotReachEnvCfg`` — an Isaac Lab ``ManagerBasedRLEnvCfg`` skeleton for the
+* ``SoccerbotReachEnvCfg`` — an Isaac Lab ``ManagerBasedRLEnvCfg`` skeleton for the
   real GPU-parallel training run (the production path).
 * ``NumpyReachEnv``     — a tiny dependency-light CPU env so ``train_residual.py``
   and the whole export pipeline are runnable on any laptop without Isaac.
@@ -29,7 +29,7 @@ RESIDUAL_LIMIT = 0.20  # must match controllers.yaml residual_limit_rad
 # ──────────────────────────────────────────────────────────────────────────────
 # Production path: Isaac Lab task configuration (skeleton).
 # ──────────────────────────────────────────────────────────────────────────────
-class MinibotReachEnvCfg:
+class SoccerbotReachEnvCfg:
     """Isaac Lab ManagerBasedRLEnvCfg for the residual-tracking task.
 
     Filled out against the installed Isaac Lab API on the workstation. Mirrors the

@@ -1,4 +1,4 @@
-# Shared MiniBot parameters (per-robot values are overridden at launch via the
+# Shared soccerbot parameters (per-robot values are overridden at launch via the
 # robot_name / player_id / team_number arguments). This file documents the
 # tunables; bring-up reads controllers.yaml from soccer_description for the
 # ros2_control side.

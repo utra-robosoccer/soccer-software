@@ -24,7 +24,7 @@ from rclpy.node import Node
 from soccer_msgs.msg import FieldFeature, FieldFeatureArray
 from tf2_ros import TransformBroadcaster
 
-from soccer_localization.field_model import MinibotField
+from soccer_localization.field_model import SoccerbotField
 
 
 def _wrap(a: np.ndarray) -> np.ndarray:
@@ -34,7 +34,7 @@ def _wrap(a: np.ndarray) -> np.ndarray:
 class ParticleFilter:
     """Field-feature MCL over poses [x, y, theta]."""
 
-    def __init__(self, field: MinibotField, num_particles: int = 300,
+    def __init__(self, field: SoccerbotField, num_particles: int = 300,
                  explorer_frac: float = 0.05, seed: int = 0) -> None:
         self.field = field
         self.n = num_particles
@@ -105,7 +105,7 @@ class MclNode(Node):
         super().__init__("mcl_node")
         self.declare_parameter("num_particles", 300)
         self.declare_parameter("explorer_frac", 0.05)
-        self._field = MinibotField()
+        self._field = SoccerbotField()
         self._pf = ParticleFilter(
             self._field,
             int(self.get_parameter("num_particles").value),
@@ -143,7 +143,7 @@ class MclNode(Node):
     def _publish(self) -> None:
         est = self._pf.estimate()
         # In a full system the map->odom transform is est composed with the inverse
-        # of the latest odom; for MiniBot we publish the estimate as map->base_link.
+        # of the latest odom; for soccerbot we publish the estimate as map->base_link.
         t = TransformStamped()
         t.header.stamp = self.get_clock().now().to_msg()
         t.header.frame_id = "map"

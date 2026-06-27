@@ -4,7 +4,7 @@
   <name>soccer_perception</name>
   <version>0.1.0</version>
   <description>
-    L3 perception for MiniBot (blueprint §5, localization report §3.2). Two
+    L3 perception for soccerbot (blueprint §5, localization report §3.2). Two
     decoupled vision problems: (1) a swappable object DETECTOR node
     (RF-DETR/YOLO → TensorRT) for ball/goalpost/robot, and (2) a field-line
     SEGMENTATION node feeding the MCL point cloud. A projection node turns image

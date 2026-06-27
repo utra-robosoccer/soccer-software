@@ -1,0 +1,94 @@
+<?xml version="1.0"?>
+<!--
+  The ros2_control abstraction boundary (blueprint §9-10).
+
+  This macro emits a <ros2_control> block whose ONLY difference between sim and
+  real is the <hardware> plugin:
+
+    * sim  -> soccer_hardware/SoccerbotSimHardware
+             (integrates each joint with the MIT impedance law in software;
+              stands in for Isaac/Mujoco)
+    * real -> soccer_hardware/SoccerbotSerialHardware
+             (streams a full MIT impedance command per joint to the Master STM32
+              over USB-CDC; the Robostride actuators close the torque loop ONBOARD)
+
+  Every joint exposes the FULL MIT command tuple — position, velocity, kp, kd,
+  effort (feed-forward torque) — matching the Jetson↔Master contract in
+  docs/architecture/jetson_master_protocol.md. Nodes above this line see the
+  IDENTICAL interfaces, so the entire ROS graph is unchanged sim-to-real.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="soccerbot_ros2_control"
+               params="sim serial_port pan_limit pan_effort pan_velocity">
+
+    <ros2_control name="SoccerbotSystem" type="system">
+
+      <!-- ── Hardware plugin: the ONLY thing that changes sim<->real ── -->
+      <hardware>
+        <xacro:if value="${sim}">
+          <plugin>soccer_hardware/SoccerbotSimHardware</plugin>
+          <param name="update_rate">500</param>
+        </xacro:if>
+        <xacro:unless value="${sim}">
+          <plugin>soccer_hardware/SoccerbotSerialHardware</plugin>
+          <param name="serial_port">${serial_port}</param>
+          <param name="baud_rate">1000000</param>
+          <!-- If the Master heartbeat goes silent this long, surface a fault so
+               the controllers halt; the Master independently zeroes torque. -->
+          <param name="watchdog_timeout_ms">100</param>
+        </xacro:unless>
+      </hardware>
+
+      <!-- ── neck_pan (placeholder joint; the full humanoid tree comes later) ──
+           Full MIT impedance command set + measured state. -->
+      <joint name="neck_pan">
+        <command_interface name="position">
+          <param name="min">${-pan_limit}</param>
+          <param name="max">${pan_limit}</param>
+        </command_interface>
+        <command_interface name="velocity">
+          <param name="min">${-pan_velocity}</param>
+          <param name="max">${pan_velocity}</param>
+        </command_interface>
+        <!-- Impedance gains: variable per-cycle stiffness/damping (the reason the
+             Robostride actuators exist). -->
+        <command_interface name="kp">
+          <param name="min">0.0</param>
+          <param name="max">500.0</param>
+        </command_interface>
+        <command_interface name="kd">
+          <param name="min">0.0</param>
+          <param name="max">50.0</param>
+        </command_interface>
+        <!-- Feed-forward torque (N·m). -->
+        <command_interface name="effort">
+          <param name="min">${-pan_effort}</param>
+          <param name="max">${pan_effort}</param>
+        </command_interface>
+
+        <state_interface name="position"/>
+        <state_interface name="velocity"/>
+        <state_interface name="effort"/>   <!-- measured via current sense (RL needs τ) -->
+      </joint>
+
+      <!-- ── Body IMU exposed as a ros2_control sensor (synced in the Master
+           telemetry frame; synthesised in sim) ── -->
+      <sensor name="imu_sensor">
+        <state_interface name="orientation.x"/>
+        <state_interface name="orientation.y"/>
+        <state_interface name="orientation.z"/>
+        <state_interface name="orientation.w"/>
+        <state_interface name="angular_velocity.x"/>
+        <state_interface name="angular_velocity.y"/>
+        <state_interface name="angular_velocity.z"/>
+        <state_interface name="linear_acceleration.x"/>
+        <state_interface name="linear_acceleration.y"/>
+        <state_interface name="linear_acceleration.z"/>
+        <param name="frame_id">imu_link</param>
+      </sensor>
+
+    </ros2_control>
+
+  </xacro:macro>
+</robot>

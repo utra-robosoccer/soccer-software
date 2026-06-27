@@ -10,7 +10,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.dev
-    image: minibot-dev:latest
+    image: soccerbot-dev:latest
     network_mode: host
     working_dir: /ws
     volumes:
@@ -24,7 +24,7 @@ services:
                ros2 launch soccer_bringup team.launch.py num_robots:=2 sim:=true"
 
   gamecontroller:
-    image: minibot-dev:latest
+    image: soccerbot-dev:latest
     network_mode: host
     working_dir: /ws
     volumes:
@@ -43,7 +43,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.dev
-    image: minibot-dev:latest
+    image: soccerbot-dev:latest
     working_dir: /ws
     volumes:
       - ../..:/ws

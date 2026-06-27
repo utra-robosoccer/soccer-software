@@ -1,18 +1,18 @@
 """Unit tests for the field model + MCL particle filter (no ROS required)."""
 import numpy as np
 
-from soccer_localization.field_model import MinibotField
+from soccer_localization.field_model import SoccerbotField
 from soccer_localization.mcl_node import ParticleFilter
 
 
 def test_likelihood_higher_on_lines():
-    f = MinibotField()
+    f = SoccerbotField()
     on_line = np.array([[0.0, 1.5]])      # on the halfway line (y in [-2,2])
     off_line = np.array([[1.3, 0.4]])     # empty grass
     assert f.line_likelihood(on_line)[0] > f.line_likelihood(off_line)[0]
 
 
-def _observations(field: MinibotField, pose, rng, n=60):
+def _observations(field: SoccerbotField, pose, rng, n=60):
     """Sample world line points visible from `pose` and express them in base frame."""
     x, y, th = pose
     pts = []
@@ -30,7 +30,7 @@ def _observations(field: MinibotField, pose, rng, n=60):
 
 
 def test_mcl_converges_when_seeded_near_truth():
-    field = MinibotField()
+    field = SoccerbotField()
     rng = np.random.default_rng(1)
     true_pose = np.array([-1.0, 0.5, 0.2])
 
@@ -49,7 +49,7 @@ def test_mcl_converges_when_seeded_near_truth():
 
 
 def test_explorer_particles_reseed_on_resample():
-    field = MinibotField()
+    field = SoccerbotField()
     pf = ParticleFilter(field, num_particles=100, explorer_frac=0.1, seed=3)
     # Force a degenerate weight distribution so resampling triggers.
     pf.weights = np.zeros(pf.n)

@@ -41,7 +41,7 @@ class FieldlineNode(Node):
         image_topic = self.get_parameter("image_topic").value
         self._max_points = int(self.get_parameter("max_points").value)
 
-        # Fixed intrinsics for the MiniBot monocular camera (640x480, ~60° HFOV).
+        # Fixed intrinsics for the soccerbot monocular camera (640x480, ~60° HFOV).
         self._cam = PinholeCamera(
             fx=550.0, fy=550.0, cx=320.0, cy=240.0, width=640, height=480,
             mount_height=0.30, tilt=0.35,

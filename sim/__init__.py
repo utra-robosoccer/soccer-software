@@ -1,1 +1,1 @@
-"""MiniBot sim package (workstation training; not deployed to robots)."""
+"""Soccerbot sim package (workstation training; not deployed to robots)."""

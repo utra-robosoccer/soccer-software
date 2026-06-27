@@ -4,7 +4,7 @@
   <name>soccer_control</name>
   <version>0.1.0</version>
   <description>
-    L1 whole-body control for MiniBot (blueprint §4): a model-based MPC reference
+    L1 whole-body control for soccerbot (blueprint §4): a model-based MPC reference
     generator (mpc_node) plus a ros2_control "ResidualRLController" plugin that
     adds a *bounded* RL residual on top of the MPC reference. MPC = physically
     grounded trajectory; RL = disturbance absorber; the 1 kHz PD lives on the MCU.

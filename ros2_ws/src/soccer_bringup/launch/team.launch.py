@@ -1,4 +1,4 @@
-"""Bring up a team of N MiniBots — fully decentralized, no master (blueprint §8).
+"""Bring up a team of N soccerbots — fully decentralized, no master (blueprint §8).
 
 Each robot is the IDENTICAL graph from robot.launch.py under its own namespace
 (``/robot_1`` ...) and player id. They share only the global ``/team_data`` topic

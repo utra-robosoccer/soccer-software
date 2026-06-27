@@ -4,7 +4,7 @@
   <name>soccer_description</name>
   <version>0.1.0</version>
   <description>
-    MiniBot kinematic description (URDF/xacro) and the ros2_control tags that
+    Soccerbot kinematic description (URDF/xacro) and the ros2_control tags that
     form the single sim/real abstraction boundary. One revolute motor
     (neck_pan), one camera, one IMU. The exact same description drives both the
     simulator and the real robot — only the hardware plugin swaps.

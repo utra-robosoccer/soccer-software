@@ -4,7 +4,7 @@ Holds the exact field geometry (lines + centre circle + goalposts) and bakes a
 **likelihood-field map**: a grid whose value at each cell is a Gaussian of the
 distance to the nearest field line. Weighting an observed line point is then an
 O(1) lookup — the efficient form of Chamfer matching the top RoboCup teams use
-(Bit-Bots ``lines.png``). ``MinibotField`` is the single source of field truth,
+(Bit-Bots ``lines.png``). ``SoccerbotField`` is the single source of field truth,
 reused by both the MCL and any visualization.
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ except Exception:  # pragma: no cover
 
 
 @dataclass
-class MinibotField:
+class SoccerbotField:
     """A small symmetric soccer field, centred at the origin (metres)."""
 
     length: float = 6.0          # x extent (touchline to touchline)

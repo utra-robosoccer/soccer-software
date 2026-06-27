@@ -1,6 +1,6 @@
 # hardware — CAD & PCB (Git LFS)
 
-Mechanical and electrical design artifacts for MiniBot. Binary CAD/PCB files are
+Mechanical and electrical design artifacts for soccerbot. Binary CAD/PCB files are
 tracked with **Git LFS** (see `.gitattributes`) so the robot runtime clone stays
 lean (blueprint §11). This folder is owned by the mechanical/electrical teams and
 is **not** deployed to robots.
@@ -8,7 +8,7 @@ is **not** deployed to robots.
 Expected contents (not committed in this scaffold):
 
 ```text
-cad/        minibot.step / .f3d     — frame, neck_pan mount, camera bracket
+cad/        soccerbot.step / .f3d     — frame, neck_pan mount, camera bracket
 pcb/        motor_driver.kicad_pcb  — BLDC/FOC driver with CURRENT SENSE
             (current sense is non-negotiable: residual RL needs measured τ — blueprint §9)
 bom/        bill_of_materials.csv

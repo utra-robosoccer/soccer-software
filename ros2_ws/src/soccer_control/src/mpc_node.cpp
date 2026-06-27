@@ -1,7 +1,7 @@
 // mpc_node — the model-based reference generator (L1, blueprint §4).
 //
 // On the full robot this is the footstep planner + ZMP/whole-body MPC that emits
-// a physically grounded reference trajectory. On MiniBot (one joint) it reduces
+// a physically grounded reference trajectory. On soccerbot (placeholder single joint) it reduces
 // to a clamped-acceleration reference for `neck_pan` that realizes the high-level
 // ControlGoal from Strategy:
 //

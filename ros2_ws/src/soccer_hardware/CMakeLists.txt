@@ -14,8 +14,8 @@ find_package(rclcpp_lifecycle REQUIRED)
 set(DEPS hardware_interface pluginlib rclcpp rclcpp_lifecycle)
 
 add_library(${PROJECT_NAME} SHARED
-  src/minibot_sim_hardware.cpp
-  src/minibot_serial_hardware.cpp
+  src/soccerbot_sim_hardware.cpp
+  src/soccerbot_serial_hardware.cpp
 )
 target_include_directories(${PROJECT_NAME} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

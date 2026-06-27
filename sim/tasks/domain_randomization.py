@@ -2,7 +2,7 @@
 
 Randomizing the physics + sensors each episode forces the policy to be robust
 instead of overfitting one perfect sim, which is what lets it transfer to the
-real MiniBot. These ranges are the knobs system-identification later tightens to
+real soccerbot. These ranges are the knobs system-identification later tightens to
 match measured hardware.
 """
 from __future__ import annotations

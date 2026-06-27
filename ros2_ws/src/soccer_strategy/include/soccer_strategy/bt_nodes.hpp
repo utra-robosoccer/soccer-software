@@ -1,4 +1,4 @@
-// Behavior Tree leaf nodes for MiniBot strategy (blueprint §6).
+// Behavior Tree leaf nodes for soccerbot strategy (blueprint §6).
 //
 // The tree reads a shared StrategyContext (the world-model snapshot updated by
 // the strategy node's ROS subscriptions) and turns intent into a ControlGoal for

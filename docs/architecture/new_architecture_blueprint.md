@@ -6,6 +6,22 @@
 
 ---
 
+> **Update (2026-06-27) — L0 actuation revised.** The original plan put a custom
+> **1 kHz PD loop on an STM32/Teensy MCU** (`firmware/motor_controller`). The robot
+> now uses **Robostride** quasi-direct-drive actuators that **close the MIT
+> impedance loop onboard**; an **STM32 Master/Slave** bridge (the `soccer-firmware`
+> submodule, replacing `firmware/`) handles safety, the watchdog, telemetry
+> aggregation, and the CAN-FD link. The Jetson streams the full MIT setpoint
+> (`q*, qd*, kp, kd, τ_ff`) rather than a position target. The blueprint's core
+> argument is **unchanged** — the hard-real-time loop stays **off** the Linux box —
+> only its _location_ moved from a custom MCU to the actuator. Wherever this doc
+> says "1 kHz PD on the MCU," read "onboard MIT impedance on the Robostride; Master
+> = safety + aggregation." Details:
+> [jetson_master_protocol.md](jetson_master_protocol.md) ·
+> [soccer_hardware_rewrite.md](soccer_hardware_rewrite.md).
+
+---
+
 ## 0. Confirmed Decisions & Recommendations (Read This First)
 
 | Area                      | Your Choice                     | My Recommendation (with research)                                                                 | Status             |
@@ -483,8 +499,8 @@ soccerbot/                          # one monorepo, pinned-together history
 │   ├── soccer_teamcomm/            # decentralized DDS world model + bids
 │   └── game_controller_bridge/     # UDP 3838/3939 ↔ /gc/game_state
 │
-├── firmware/                       # ── MCU code (NOT deployed via ROS) ──
-│   └── motor_controller/           # micro-ROS, 1 kHz PD/FOC, watchdog
+├── soccer-firmware/                # ── [submodule] STM32 Master/Slave (NOT deployed via ROS) ──
+│   └── (Master: safety + aggregation · CAN-FD MIT bridge to Robostride)
 │
 ├── sim/                            # ── Isaac Lab (runs on workstation) ──
 │   ├── tasks/                      # RL envs (walk, kick, getup, push-recovery)

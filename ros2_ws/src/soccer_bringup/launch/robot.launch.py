@@ -1,4 +1,4 @@
-"""Bring up ONE fully-namespaced MiniBot (blueprint §8, §11).
+"""Bring up ONE fully-namespaced soccerbot (blueprint §8, §11).
 
 The SAME launch file runs the robot in simulation or on hardware — the only
 difference is the ``sim`` argument, which flips the ros2_control hardware plugin
@@ -38,7 +38,7 @@ def generate_launch_description() -> LaunchDescription:
     camera_model = LaunchConfiguration("camera_model")
 
     description_share = FindPackageShare("soccer_description")
-    xacro_file = PathJoinSubstitution([description_share, "urdf", "minibot.urdf.xacro"])
+    xacro_file = PathJoinSubstitution([description_share, "urdf", "soccerbot.urdf.xacro"])
     controllers_yaml = PathJoinSubstitution([description_share, "config", "controllers.yaml"])
     camera_launch = PathJoinSubstitution(
         [FindPackageShare("soccer_bringup"), "launch", "camera.launch.py"]
