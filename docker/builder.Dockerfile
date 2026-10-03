@@ -52,6 +52,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
       ros-jazzy-ament-cmake \
       ros-jazzy-mujoco-vendor \
       ros-jazzy-rviz2 \
+      ros-jazzy-foxglove-bridge \
       python3-colcon-ros \
       python3-rosdep \
  && rm -rf /var/lib/apt/lists/*
@@ -76,5 +77,9 @@ RUN echo '/opt/mujoco-3.4.0/lib' > /etc/ld.so.conf.d/mujoco.conf && ldconfig
 WORKDIR /ws
 COPY tools/pin_audit.py /usr/local/bin/pin_audit.py
 RUN chmod 0755 /usr/local/bin/pin_audit.py
+
+# XDG_RUNTIME_DIR for Qt and for the VS Code server, which links its sockets into it while
+# attaching, before any devcontainer lifecycle command runs. It has to exist in the image.
+RUN install -d -m 0700 /tmp/runtime-root
 
 ENTRYPOINT ["/bin/bash"]
