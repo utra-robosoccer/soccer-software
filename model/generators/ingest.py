@@ -1,4 +1,10 @@
-"""Ingest MuJoCo Menagerie MJCF -> model/source/robot_model.yaml (+ contact overlay).
+"""Import a MuJoCo Menagerie MJCF into a robot_model.yaml (+ contact overlay).
+
+  python3 -m model.generators.ingest CONFIG MODEL_OUT OVERLAY_OUT
+
+A one-off conversion tool, not part of `check`: its output is a starting point, and from then on
+the written robot_model.yaml is the hand-edited source of truth. Re-running it overwrites any hand
+edits, so diff before committing.
 
 Assumptions to verify on first run (parser is defensive, but confirm):
   - one movable joint per body; free joint only on the root body
@@ -12,7 +18,7 @@ import xml.etree.ElementTree as ET
 
 import yaml
 
-from .common import quat_to_rpy, sha256_file, vec, geom_size
+from .common import quat_to_matrix, quat_to_rpy, vec, geom_size
 
 SCHEMA_VERSION = "1.0.0"
 GEOM_EXTRA_ATTRS = ("size", "mesh", "friction", "condim", "solref", "solimp",
@@ -100,18 +106,14 @@ def make_limits(lo, hi, torque_nm, ctx, fixed=False):
         "hard_stop_lower_rad": lo, "hard_stop_upper_rad": hi,
         "software_lower_rad": lo + margin, "software_upper_rad": hi - margin,
         "velocity_rad_s": 1.0 if fixed else PROVISIONAL_VELOCITY_RAD_S,
-        "velocity_limit_origin": "drive",
-        "effort_continuous_nm": torque_nm,  # optimistic: no thermal data (NR)
+        "effort_continuous_nm": torque_nm,  # optimistic: no thermal data
         "effort_peak_nm": torque_nm,
         "effort_peak_duration_s": 1.0,
     }
 
 def make_transmission(attrs, joint_name=None):
     return {
-        "gear_ratio": 1.0,          # provisional: sim plant is the ground truth
         "direction_sign": -1 if joint_name in MIRRORED_TRANSMISSION_JOINTS else 1,
-        "backlash_rad": "NR",
-        "stiffness_nm_rad": "NR",
         "friction_coulomb_nm": float(attrs.get("frictionloss", 0.0)),
         "friction_viscous_nm_s_rad": float(attrs.get("damping", 0.0)),
         "armature_kg_m2": float(attrs.get("armature", 0.0)),
@@ -143,16 +145,16 @@ def walk_body(body, parent_link, eff_class, angle, ctx, joint_defaults, geom_def
     iquat = vec(inertial.get("quat"), 4, [1, 0, 0, 0])
     diag, full = inertial.get("diaginertia"), inertial.get("fullinertia")
     if diag:
+        # Principal moments in a frame rotated by `quat`; the model keeps link-frame axes:
+        # I = R diag(d) R^T.
         d = vec(diag, 3, None)
-        inertia = {"reference_point": "com", "reference_frame": "principal",
-                   "principal_axes_rpy_rad": quat_to_rpy(iquat),
-                   "ixx_kg_m2": d[0], "iyy_kg_m2": d[1], "izz_kg_m2": d[2],
-                   "ixy_kg_m2": 0.0, "ixz_kg_m2": 0.0, "iyz_kg_m2": 0.0}
+        r = quat_to_matrix(iquat)
+        t = [[sum(r[a][k] * d[k] * r[b][k] for k in range(3)) for b in range(3)] for a in range(3)]
+        inertia = {"ixx_kg_m2": t[0][0], "iyy_kg_m2": t[1][1], "izz_kg_m2": t[2][2],
+                   "ixy_kg_m2": t[0][1], "ixz_kg_m2": t[0][2], "iyz_kg_m2": t[1][2]}
     elif full:
         ixx, iyy, izz, ixy, ixz, iyz = vec(full, 6, None)
-        inertia = {"reference_point": "com", "reference_frame": "link",
-                   "principal_axes_rpy_rad": None,
-                   "ixx_kg_m2": ixx, "iyy_kg_m2": iyy, "izz_kg_m2": izz,
+        inertia = {"ixx_kg_m2": ixx, "iyy_kg_m2": iyy, "izz_kg_m2": izz,
                    "ixy_kg_m2": ixy, "ixz_kg_m2": ixz, "iyz_kg_m2": iyz}
     else:
         raise ValueError(f"body {name}: inertial has neither diaginertia nor fullinertia")
@@ -205,14 +207,9 @@ def walk_body(body, parent_link, eff_class, angle, ctx, joint_defaults, geom_def
                 "parent_link": parent_link, "child_link": name,
                 "origin": {"xyz_m": pos, "rpy_rad": quat_to_rpy(quat)},
                 "axis": axis,
-                "positive_direction": {
-                    "description": (f"Provisional: positive follows the MJCF right-hand rule about "
-                                    f"axis {axis} in link {name}. Not physically verified."),
-                    "photo": None, "verified_by": None},
                 "limits": make_limits(lo, hi, torque, ctx),
                 "transmission": make_transmission(attrs, joint_name),
-                "calibration": {"zero_offset_rad": None, "zero_pose_value_rad": 0.0,
-                                "measured_at": None},
+                "calibration": {"zero_offset_rad": None},
                 "actuator": None,  # filled after actuator entries exist
             }
         else:
@@ -222,24 +219,20 @@ def walk_body(body, parent_link, eff_class, angle, ctx, joint_defaults, geom_def
                 "parent_link": parent_link, "child_link": name,
                 "origin": {"xyz_m": pos, "rpy_rad": quat_to_rpy(quat)},
                 "axis": [0.0, 0.0, 1.0],
-                "positive_direction": {"description": "Fixed joint; no motion axis.",
-                                       "photo": None, "verified_by": None},
                 "limits": make_limits(0.0, 0.0, PROVISIONAL_TORQUE_NM, ctx, fixed=True),
                 "transmission": make_transmission({}),
-                "calibration": {"zero_offset_rad": None, "zero_pose_value_rad": 0.0,
-                                "measured_at": None},
+                "calibration": {"zero_offset_rad": None},
                 "actuator": None,
             }
     if joint_obj is not None:
         ctx.joints.append(joint_obj)
 
-    provenance = ctx.provenance
     ctx.links.append({
         "name": name,
         "parent_joint": joint_name,
-        "mass": {"cad_kg": mass, "measured_kg": None, "provenance": provenance},
+        "mass_kg": mass,
         "com_m": com,
-        "inertia": dict(inertia, provenance=provenance),
+        "inertia": inertia,
         "visual_mesh": mesh_name,
         "collision": {"primitives": prims, "mesh": mesh_name},
     })
@@ -247,16 +240,6 @@ def walk_body(body, parent_link, eff_class, angle, ctx, joint_defaults, geom_def
         ctx.root_link = name
     for child in body.findall("body"):
         walk_body(child, name, eff_class, angle, ctx, joint_defaults, geom_defaults)
-
-def normalize(src_path, out_path):
-    """Identity ingest for an authored robot: the source is the truth, so just re-emit it in
-    canonical form. Regenerate-and-diff then flags a hand-edit that is not canonical, the same way
-    it flags a stale Menagerie ingest."""
-    with open(src_path) as f:
-        model = yaml.safe_load(f)
-    with open(out_path, "w") as f:
-        yaml.safe_dump(model, f, sort_keys=False, width=1000, allow_unicode=True)
-
 
 def ingest(config_path, out_path, overlay_out_path):
     with open(config_path) as f:
@@ -269,10 +252,10 @@ def ingest(config_path, out_path, overlay_out_path):
             compiler.get("angle", "radian") == "degree") else 1.0
 
     ctx = Ctx()
-    src_ref = f"{cfg['source']['repository']}@{cfg['source']['commit']}:{mjcf_path}"
-    ctx.provenance = {"cad_system": "derived", "document_id": src_ref,
-                      "version_or_configuration": cfg["source"]["commit"],
-                      "exported_at": cfg["exported_at"], "exported_by": cfg["exported_by"]}
+    # Where the file came from, as a comment: nothing downstream reads it.
+    header = (f"# Imported from {cfg['source']['repository']}@{cfg['source']['commit']}:"
+              f"{mjcf_path}\n# by `python3 -m model.generators.ingest`. Edit this file directly; "
+              "re-importing overwrites edits.\n")
 
     ctx.imu_site = cfg["source"].get("imu_site")
     parse_assets(root, ctx)
@@ -296,60 +279,28 @@ def ingest(config_path, out_path, overlay_out_path):
             continue
         act = ctx.actuator_by_joint.get(j["name"])
         act_name = (act["name"] if act else f"{j['name']}_act").lower().replace("-", "_")
-        nr_enc = {"bits": "NR", "min": "NR", "max": "NR", "endianness": "NR"}
         ctx.actuators.append({
             "name": act_name, "motor_class": "PROVISIONAL",
             "bus_segment": "sim0", "can_node_id": len(ctx.actuators),
-            "mit_encoding": {
-                "verified_by": "NR",
-                "position": dict(nr_enc), "velocity": dict(nr_enc), "effort": dict(nr_enc),
-                "stiffness": dict(nr_enc), "damping": dict(nr_enc),
-                "frames_per_cycle_command": "NR", "frames_per_cycle_feedback": "NR",
-                "dlc_command_bytes": "NR", "dlc_feedback_bytes": "NR"},
-            "thermal": {"derating_curve": "NR", "measured": False},
         })
         j["actuator"] = act_name
 
-    digests = {mjcf_path: sha256_file(mjcf_path)}
-    assets_dir = cfg["source"]["assets_dir"]
-    for mesh_file in sorted(ctx.meshes.values()):
-        p = os.path.join(assets_dir, mesh_file)
-        if os.path.exists(p):
-            digests[p] = sha256_file(p)
-
     model = {
         "schema_version": SCHEMA_VERSION,
-        "robot": {"name": cfg["model_name"], "size_class": "kidsize",
-                  "root_link": ctx.root_link, "total_mass_measured_kg": None,
-                  "zero_pose_photo": None},
-        "provenance": {"generated_from": [src_ref],
-                       "ingest_tool_version": cfg["ingest_tool_version"],
-                       "source_digests": digests},
+        "robot": {"name": cfg["model_name"], "root_link": ctx.root_link},
         "links": ctx.links,
         "joints": ctx.joints,
         "actuators": ctx.actuators,
-        "closed_loops": [],
-        "emission": {
-            "urdf": {"enabled": True, "mode": "full_tree", "excluded_links": []},
-            "mjcf": {"enabled": True},
-            "sdf": {"enabled": False},
-            "usd": {"enabled": False}},
-        "simulation": {"mjcf_compiler": {
-            "balanceinertia": False, "boundmass": 0, "boundinertia": 0,
-            "settotalmass": -1, "inertiafromgeom": "false",
-            "strippath": False, "angle": "radian",
-            "fusestatic": "false", "discardvisual": False}},
     }
     if ctx.imu is not None:
         model["imu"] = ctx.imu
     with open(out_path, "w") as f:
+        f.write(header)
         yaml.safe_dump(model, f, sort_keys=False, width=1000, allow_unicode=True)
 
-    overlay = {"generated_from": [src_ref],
-               "source_digest": digests[mjcf_path],
-               "meshes": ctx.meshes,
-               "bodies": ctx.overlay}
+    overlay = {"meshes": ctx.meshes, "bodies": ctx.overlay}
     with open(overlay_out_path, "w") as f:
+        f.write(header)
         yaml.safe_dump(overlay, f, sort_keys=False, width=1000, allow_unicode=True)
 
     for w in ctx.warnings:
@@ -358,3 +309,14 @@ def ingest(config_path, out_path, overlay_out_path):
         print("WARN: source has no free joint on root; emitter will add one", file=sys.stderr)
     print(f"ingested {len(ctx.links)} links, {len(ctx.joints)} joints, "
           f"{len(ctx.actuators)} actuators -> {out_path}")
+
+def main():
+    p = argparse.ArgumentParser(description="Import a Menagerie MJCF into a robot_model.yaml.")
+    p.add_argument("config", help="import config, e.g. model/robots/unitree_g1/source/ingest.yaml")
+    p.add_argument("model_out", help="robot_model.yaml to write")
+    p.add_argument("overlay_out", help="contact overlay to write")
+    args = p.parse_args()
+    ingest(args.config, args.model_out, args.overlay_out)
+
+if __name__ == "__main__":
+    main()

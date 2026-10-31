@@ -2,7 +2,7 @@
 
 MJCF is emitted with NO <actuator> section: MujocoActuatorTransport applies the MIT
 tuple as joint torque via qfrc_applied (ADR-007 seam, ADR-001 tuple). Compiler flags
-come from the pinned simulation block; see AMEND-1 and model-gate-0 §5.5.
+are the pinned MJCF_COMPILER; see AMEND-1 and model-gate-0 §5.5.
 """
 import hashlib
 import math
@@ -12,7 +12,7 @@ import xml.etree.ElementTree as ET
 
 import yaml
 
-from .common import num_or, quat_to_rpy, rpy_to_quat
+from .common import quat_to_rpy, rpy_to_quat
 
 TIMING_HPP = "src/humanoid_transport/include/humanoid_transport/timing.hpp"
 
@@ -21,6 +21,19 @@ PROV_KP_MAX, PROV_KD_MAX = 500.0, 10.0
 PROV_SLEW_NM_S, PROV_POWER_W = 500.0, 400.0
 CMD_INTERFACES = ("position", "velocity", "effort", "stiffness", "damping")
 STATE_INTERFACES = ("position", "velocity", "effort")
+# MJCF <compiler> attributes, all explicit: MuJoCo must never rewrite the model's inertial data, and
+# never fall back to a default that differs between URDF and MJCF input.
+MJCF_COMPILER = (
+    ("angle", "radian"),           # the model's unit; the default differs between URDF and MJCF
+    ("balanceinertia", "false"),   # true silently averages an invalid diagonal inertia
+    ("boundmass", "0"),            # a positive bound silently raises a small mass
+    ("boundinertia", "0"),         # a positive bound silently raises a small inertia
+    ("settotalmass", "-1"),        # a positive value silently rescales every mass
+    ("inertiafromgeom", "false"),  # inertia comes from the model, never from collision geometry
+    ("fusestatic", "false"),       # fusing bodies loses the link identity URDF and firmware share
+    ("strippath", "false"),        # the default differs between URDF and MJCF
+    ("discardvisual", "false"),    # the default differs between URDF and MJCF
+)
 # The interface names imu_sensor_broadcaster reads; kImuStateFields in batch_types.hpp spells the
 # same list, and the hardware contract rejects a description that differs.
 IMU_INTERFACES = (
@@ -47,17 +60,6 @@ def children_by_parent(joints):
 def fmt(xs):
     return " ".join(f"{x:.10g}" for x in xs)
 
-def _inertial_xml(link):
-    inertia, com = link["inertia"], link["com_m"]
-    e = ET.Element("inertial")
-    if inertia["reference_frame"] == "principal":
-        e.set("origin", "")  # replaced below; kept explicit for clarity
-        e.attrib.clear()
-        rpy = inertia["principal_axes_rpy_rad"]
-        e.set("xyz", fmt(com)); e.set("rpy", fmt(rpy))
-        e2 = ET.SubElement(link_elem_placeholder := e, "mass") if False else None
-    return e  # placeholder; real construction below
-
 def emit_urdf(model, out_path, assets_dir,
               safety_manifest_path="config/safety_manifest.yaml",
               safety_manifest_package="humanoid_bringup"):
@@ -77,19 +79,18 @@ def emit_urdf(model, out_path, assets_dir,
         le = ET.SubElement(robot, "link", name=l["name"])
         ie = ET.SubElement(le, "inertial")
         inertia, com = l["inertia"], l["com_m"]
-        rpy = inertia["principal_axes_rpy_rad"] or [0, 0, 0]
         ie.set("xyz", fmt(com))
-        ie.set("rpy", fmt(rpy))
-        ET.SubElement(ie, "mass", value=f"{l['mass']['cad_kg']:.10g}")
+        ie.set("rpy", fmt([0, 0, 0]))  # the tensor's axes are the link frame's
+        ET.SubElement(ie, "mass", value=f"{l['mass_kg']:.10g}")
         ET.SubElement(
             ie,
             "inertia",
             ixx=f"{inertia['ixx_kg_m2']:.10g}",
             iyy=f"{inertia['iyy_kg_m2']:.10g}",
             izz=f"{inertia['izz_kg_m2']:.10g}",
-            ixy="0",
-            ixz="0",
-            iyz="0",
+            ixy=f"{inertia['ixy_kg_m2']:.10g}",
+            ixz=f"{inertia['ixz_kg_m2']:.10g}",
+            iyz=f"{inertia['iyz_kg_m2']:.10g}",
         )
 
         mesh = l.get("visual_mesh")
@@ -198,8 +199,8 @@ def emit_urdf(model, out_path, assets_dir,
         ET.SubElement(
             je,
             "dynamics",
-            damping=f"{num_or(tr['friction_viscous_nm_s_rad']):.10g}",
-            friction=f"{num_or(tr['friction_coulomb_nm']):.10g}",
+            damping=f"{tr['friction_viscous_nm_s_rad']:.10g}",
+            friction=f"{tr['friction_coulomb_nm']:.10g}",
         )
 
     imu = model.get("imu")
@@ -248,20 +249,12 @@ def emit_mjcf(model, overlay, out_path, assets_rel):
     joints = model["joints"]
     kids = children_by_parent(joints)
     joint_by_child = {j["child_link"]: j for j in joints}
-    sim = model["simulation"]["mjcf_compiler"]
     imu = model.get("imu")
 
     mj = ET.Element("mujoco", model=model["robot"]["name"])
     comp = ET.SubElement(mj, "compiler")
-    comp.set("angle", sim["angle"])
-    comp.set("balanceinertia", "true" if sim["balanceinertia"] else "false")
-    comp.set("boundmass", f"{sim['boundmass']}")
-    comp.set("boundinertia", f"{sim['boundinertia']}")
-    comp.set("settotalmass", f"{sim['settotalmass']}")
-    comp.set("inertiafromgeom", sim["inertiafromgeom"])
-    comp.set("fusestatic", sim["fusestatic"])
-    comp.set("strippath", "true" if sim["strippath"] else "false")
-    comp.set("discardvisual", "true" if sim["discardvisual"] else "false")
+    for key, value in MJCF_COMPILER:
+        comp.set(key, value)
     comp.set("meshdir", assets_rel.replace("\\", "/"))
     # 1 ms physics: 5 substeps per 5 ms control period (ADR-007-03, asserted at configure).
     ET.SubElement(mj, "option", timestep="0.001", integrator="implicitfast")
@@ -294,15 +287,10 @@ def emit_mjcf(model, overlay, out_path, assets_rel):
             ET.SubElement(be, "freejoint", name="root")
         inertia, com = l["inertia"], l["com_m"]
         ie = ET.SubElement(be, "inertial")
-        ie.set("pos", fmt(com)); ie.set("mass", f"{l['mass']['cad_kg']:.10g}")
-        if inertia["reference_frame"] == "principal":
-            ie.set("quat", fmt(rpy_to_quat(inertia["principal_axes_rpy_rad"])))
-            ie.set("diaginertia", fmt([inertia["ixx_kg_m2"], inertia["iyy_kg_m2"],
-                                       inertia["izz_kg_m2"]]))
-        else:
-            ie.set("fullinertia", fmt([inertia["ixx_kg_m2"], inertia["iyy_kg_m2"],
-                                       inertia["izz_kg_m2"], inertia["ixy_kg_m2"],
-                                       inertia["ixz_kg_m2"], inertia["iyz_kg_m2"]]))
+        ie.set("pos", fmt(com)); ie.set("mass", f"{l['mass_kg']:.10g}")
+        ie.set("fullinertia", fmt([inertia["ixx_kg_m2"], inertia["iyy_kg_m2"],
+                                   inertia["izz_kg_m2"], inertia["ixy_kg_m2"],
+                                   inertia["ixz_kg_m2"], inertia["iyz_kg_m2"]]))
         add_geoms(be, link_name)
         if imu is not None and imu["link"] == link_name:
             ET.SubElement(be, "site", name=imu["name"], pos=fmt(imu["pos_m"]),
@@ -316,9 +304,9 @@ def emit_mjcf(model, overlay, out_path, assets_rel):
                                    axis=fmt(j["axis"]),
                                    range=f"{j['limits']['hard_stop_lower_rad']:.10g} "
                                          f"{j['limits']['hard_stop_upper_rad']:.10g}")
-                je.set("damping", f"{num_or(tr['friction_viscous_nm_s_rad']):.10g}")
-                je.set("frictionloss", f"{num_or(tr['friction_coulomb_nm']):.10g}")
-                je.set("armature", f"{num_or(tr.get('armature_kg_m2'), default=0.0):.10g}")
+                je.set("damping", f"{tr['friction_viscous_nm_s_rad']:.10g}")
+                je.set("frictionloss", f"{tr['friction_coulomb_nm']:.10g}")
+                je.set("armature", f"{tr['armature_kg_m2']:.10g}")
         for cj in kids.get(link_name, []):
             add_body(be, cj["child_link"], False)
 
@@ -345,16 +333,16 @@ def emit_mjcf(model, overlay, out_path, assets_rel):
     ET.indent(mj)
     ET.ElementTree(mj).write(out_path, xml_declaration=True, encoding="utf-8")
 
-def emit_safety_manifest(model, out_path):
-    # Per-joint gain caps come from the actuator's measured `drive` block when present; a
-    # provisional/sim actuator without one falls back to the global PROV_* envelope.
+def emit_safety_manifest(model, motor_limits, out_path):
+    # Per-joint gain caps come from the actuator's motor model in model/motors.yaml; a PROVISIONAL
+    # sim actuator has none and falls back to the global PROV_* envelope.
     act_by_name = {a["name"]: a for a in model["actuators"]}
     envelopes = {}
     for j in model["joints"]:
         if j["type"] == "fixed":
             continue
         lim = j["limits"]
-        drive = (act_by_name.get(j["actuator"]) or {}).get("drive")
+        drive = motor_limits.get(act_by_name[j["actuator"]]["motor_class"])
         envelopes[j["name"]] = {
             "position_min_rad": lim["software_lower_rad"],
             "position_max_rad": lim["software_upper_rad"],
@@ -387,19 +375,20 @@ def control_rate_hz():
         raise ValueError(f"kControlRateHz not found in {TIMING_HPP}")
     return int(m.group(1))
 
-def emit_firmware_config(model, out_path, setup):
+def emit_firmware_config(model, motor_limits, out_path, setup):
     """A config artifact the firmware repo consumes (it is committed there with its hash).
     Everything is derived from robot_model.yaml; the firmware never hand-edits it, and the hash
     lets its generator refuse a tampered copy."""
     act_by_name = {a["name"]: a for a in model["actuators"]}
     joint_by_act = {j["actuator"]: j for j in model["joints"] if j["actuator"] is not None}
 
-    # Per-model drive ranges and the shared Kp/Kd/position ranges, reconstructed from the drives.
+    # Per-model drive ranges and the shared Kp/Kd/position ranges, from the motor models used.
     models, shared = {}, None
     for a in model["actuators"]:
-        d = a.get("drive")
-        if d is None:
-            raise ValueError(f"actuator {a['name']} has no drive block; firmware_config needs it")
+        d = motor_limits.get(a["motor_class"])
+        if d is None or "default_kp" not in a or "default_kd" not in a:
+            raise ValueError(f"actuator {a['name']} needs a model/motors.yaml motor_class and "
+                             "default_kp/default_kd for firmware_config")
         v, t = d["velocity_max_rad_s"], d["torque_max_nm"]
         models.setdefault(a["motor_class"],
                           {"v_min": -v, "v_max": v, "t_min": -t, "t_max": t})
@@ -415,14 +404,14 @@ def emit_firmware_config(model, out_path, setup):
                         key=lambda a: a["slot"])
         rows = []
         for a in motors:
-            j, d = joint_by_act[a["name"]], a["drive"]
+            j = joint_by_act[a["name"]]
             lim = j["limits"]
             rows.append({
                 "idx": a["slot"], "can_id": a["can_node_id"], "model": a["motor_class"],
                 "joint_name": j["name"],
                 "soft_min": lim["software_lower_rad"], "soft_max": lim["software_upper_rad"],
                 "max_vel": lim["velocity_rad_s"], "max_tau": lim["effort_peak_nm"],
-                "default_kp": d["default_kp"], "default_kd": d["default_kd"],
+                "default_kp": a["default_kp"], "default_kd": a["default_kd"],
             })
         slaves.append({"slave": seg, "motors": rows})
 
@@ -476,14 +465,17 @@ def emit_stm32_wiring(model, out_path):
         f.write(banner)
         yaml.safe_dump(doc, f, sort_keys=False, width=1000)
 
-def generate(src, overlay_path, out_dir, assets_dir, firmware_config=False, firmware_setup=None,
-             stm32_wiring=False, safety_manifest_path=None, safety_manifest_package=None):
+def generate(src, overlay_path, motor_limits, out_dir, generated_dir, assets_dir, urdf, mjcf,
+             firmware_config=False, firmware_setup=None, stm32_wiring=False,
+             safety_manifest_path=None, safety_manifest_package=None):
+    """Write the robot's generated files to out_dir. generated_dir is where they live in the repo:
+    the MJCF's relative meshdir is computed from it, so a regeneration elsewhere (check's temp
+    dir) still matches the committed file."""
     model, overlay = load(src, overlay_path)
     os.makedirs(out_dir, exist_ok=True)
-    emission = model["emission"]
     written = []
 
-    if emission["urdf"]["enabled"]:
+    if urdf:
         # URDF gets assets_dir to build package:// URIs with .STL extensions. The safety-manifest
         # path/package override is per-robot; the defaults keep G1's ros2_control block unchanged.
         urdf_kwargs = {}
@@ -494,18 +486,19 @@ def generate(src, overlay_path, out_dir, assets_dir, firmware_config=False, firm
         emit_urdf(model, os.path.join(out_dir, "robot.urdf"), assets_dir, **urdf_kwargs)
         written.append("robot.urdf")
 
-    if emission["mjcf"]["enabled"]:
+    if mjcf:
         # MJCF keeps relative path because of the <compiler meshdir="..." /> tag
-        assets_rel = os.path.relpath(assets_dir, "model/generated").replace("\\", "/")
+        assets_rel = os.path.relpath(assets_dir, generated_dir).replace("\\", "/")
         emit_mjcf(model, overlay, os.path.join(out_dir, "robot.mjcf"), assets_rel)
         written.append("robot.mjcf")
 
-    emit_safety_manifest(model, os.path.join(out_dir, "safety_manifest.yaml"))
+    emit_safety_manifest(model, motor_limits, os.path.join(out_dir, "safety_manifest.yaml"))
     written.append("safety_manifest.yaml")
 
     if firmware_config:
         setup = firmware_setup or model["robot"]["name"]
-        emit_firmware_config(model, os.path.join(out_dir, "firmware_config.yaml"), setup)
+        emit_firmware_config(model, motor_limits, os.path.join(out_dir, "firmware_config.yaml"),
+                             setup)
         written += ["firmware_config.yaml", "firmware_config.yaml.sha256"]
 
     if stm32_wiring:
