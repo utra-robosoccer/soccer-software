@@ -1,0 +1,190 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="leg_prototype">
+  <link name="left_shin_link">
+    <inertial xyz="0.0005172538 0.0065571135 0.1025531724" rpy="0 0 0">
+      <mass value="0.7230718214" />
+      <inertia ixx="0.001932659139" iyy="0.001584818358" izz="0.0006255312376" ixy="1.193622893e-05" ixz="-6.320279423e-06" iyz="-8.155701196e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_bringup/model/robots/leg_prototype/source/meshes/left_shin_link.stl" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 0.0425 0.1275" rpy="0 0 0" />
+      <geometry>
+        <box size="0.057 0.005 0.21194" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 -0.0425 0.1275" rpy="0 0 0" />
+      <geometry>
+        <box size="0.057 0.005 0.21194" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 0.014 0.12" rpy="0 0 0" />
+      <geometry>
+        <box size="0.05694 0.052 0.057" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0.007035 -0.0255 0.119995" rpy="0 0 0" />
+      <geometry>
+        <box size="0.04293 0.029 0.05699" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 0 0.0295" rpy="0 0 0" />
+      <geometry>
+        <box size="0.042 0.08 0.083" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_foot_link">
+    <inertial xyz="0.0108015884 -0.0001869328 -0.0185307623" rpy="0 0 0">
+      <mass value="0.09548609762" />
+      <inertia ixx="3.070209793e-05" iyy="0.0001918040092" izz="0.0002078629575" ixy="-9.976287613e-07" ixz="1.129865593e-05" iyz="4.125474138e-07" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_bringup/model/robots/leg_prototype/source/meshes/left_foot_link.stl" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.02 0 -0.023" rpy="0 0 0" />
+      <geometry>
+        <box size="0.16 0.06 0.006" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="0 0.0009 -0.006" rpy="0 0 0" />
+      <geometry>
+        <box size="0.02146 0.0458 0.028" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.04 -0.003735 -0.006" rpy="0 0 0" />
+      <geometry>
+        <box size="0.02146 0.02973 0.028" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_ankle_horn_link">
+    <inertial xyz="-0.0221155383 -0.0006746517 -5.12132e-05" rpy="0 0 0">
+      <mass value="0.01330685925" />
+      <inertia ixx="9.917366362e-07" iyy="6.439338583e-06" izz="5.837653492e-06" ixy="4.949489737e-07" ixz="-1.122181252e-08" iyz="1.146159733e-09" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_bringup/model/robots/leg_prototype/source/meshes/left_ankle_horn_link.stl" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0 -0.0023 0" rpy="-1.570796327 1.568480618 0" />
+      <geometry>
+        <cylinder radius="0.0175" length="0.0046" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.0174999531 -0.0023 -4.05249e-05" rpy="-1.570796327 1.568480618 0" />
+      <geometry>
+        <box size="0.0168 0.035 0.0046" />
+      </geometry>
+    </collision>
+    <collision>
+      <origin xyz="-0.045499878 0.0039 -0.0001053647" rpy="-1.570796327 1.568480618 0" />
+      <geometry>
+        <box size="0.02176 0.021 0.017" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_ankle_rod_link">
+    <inertial xyz="-0.0084255138 0 0.059700789" rpy="0 0 0">
+      <mass value="0.009590323635" />
+      <inertia ixx="1.405100479e-05" iyy="1.437181134e-05" izz="3.607662315e-07" ixy="-3.651081662e-22" ixz="5.719032255e-07" iyz="5.330101771e-21" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://humanoid_bringup/model/robots/leg_prototype/source/meshes/left_ankle_rod_link.stl" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="-0.0049977687 0 0.0598437325" rpy="-0.04167772631 0 1.570796327" />
+      <geometry>
+        <box size="0.005 0.027 0.142" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="left_ankle_pitch_joint" type="revolute">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="left_shin_link" />
+    <child link="left_foot_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.6981" upper="0.6981" effort="2.5" velocity="10" />
+    <dynamics damping="0" friction="0" />
+  </joint>
+  <joint name="left_ankle_motor_joint" type="revolute">
+    <origin xyz="0 -0.012 0.12" rpy="0 0 0" />
+    <parent link="left_shin_link" />
+    <child link="left_ankle_horn_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.6101437645" upper="0.6058312002" effort="3.04813941" velocity="8.889002351" />
+    <dynamics damping="0" friction="0" />
+  </joint>
+  <joint name="left_ankle_rod_joint" type="revolute">
+    <origin xyz="-0.04 -0.0091 0" rpy="0 0 0" />
+    <parent link="left_foot_link" />
+    <child link="left_ankle_rod_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.7098473163" upper="0.6882711745" effort="0" velocity="10.39755775" />
+    <dynamics damping="0" friction="0" />
+  </joint>
+  <ros2_control name="HumanoidActuatorSystem" type="system">
+    <hardware>
+      <plugin>humanoid_actuator_system/HumanoidActuatorSystem</plugin>
+      <param name="safety_manifest_path">config/leg_prototype/safety_manifest.yaml</param>
+      <param name="safety_manifest_package">humanoid_bringup</param>
+    </hardware>
+    <joint name="left_ankle_pitch_joint">
+      <command_interface name="position" />
+      <command_interface name="velocity" />
+      <command_interface name="effort" />
+      <command_interface name="stiffness" />
+      <command_interface name="damping" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+      <state_interface name="effort" />
+    </joint>
+    <joint name="left_ankle_motor_joint">
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+      <state_interface name="effort" />
+    </joint>
+    <joint name="left_ankle_rod_joint">
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+      <state_interface name="effort" />
+    </joint>
+    <transmission name="left_ankle_pitch_linkage">
+      <plugin>humanoid_actuator_system/FourBarLinkage</plugin>
+      <actuator name="left_ankle_motor_joint" role="input" />
+      <joint name="left_ankle_pitch_joint" role="output" />
+      <joint name="left_ankle_rod_joint" role="coupler" />
+      <param name="ground_length_m">0.12</param>
+      <param name="input_crank_length_m">0.04499999996</param>
+      <param name="coupler_length_m">0.1200000001</param>
+      <param name="output_crank_length_m">0.04</param>
+      <param name="input_zero_angle_rad">-1.573112036</param>
+      <param name="output_zero_angle_rad">-1.570796327</param>
+      <param name="coupler_zero_angle_rad">1.529118601</param>
+      <param name="input_axis_sign">1</param>
+      <param name="output_axis_sign">1</param>
+      <param name="coupler_axis_sign">1</param>
+    </transmission>
+  </ros2_control>
+</robot>

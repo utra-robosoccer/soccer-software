@@ -1,0 +1,362 @@
+# Imported from model/robots/leg_prototype/source/Leg-Assembly---Export-v2/Leg-Assembly---Export-v2.xml by `python3 -m model.generators.ingest_fusion model/robots/leg_prototype/source/ingest.yaml`.
+# Re-importing rewrites frames, inertials, meshes, collision and closure pins, and keeps every other field.
+# Masses and inertias are PROVISIONAL until weighed: every part solid PLA (1.24 g/cm^3, infill not
+# modelled) over its CAD geometry, except the RS02, whose placeholder block in the shin takes its 380 g.
+# left_ankle_motor_joint armature 0.002 kg m^2 is an ESTIMATE of the RS02's reflected rotor inertia (a 59 g,
+# phi 55/45 x 10 mm rotor ring x 7.75^2; factor 2-3 uncertain): RobStride publishes none. Replace it with the
+# value identified on hardware (docs/leg-prototype.md).
+schema_version: 1.0.0
+robot:
+  name: leg_prototype
+  root_link: left_shin_link
+  base: fixed
+links:
+- name: left_shin_link
+  parent_joint: null
+  mass_kg: 0.7230718214425278
+  com_m:
+  - 0.0005172538
+  - 0.0065571135
+  - 0.1025531724
+  inertia:
+    ixx_kg_m2: 0.0019326591391431746
+    iyy_kg_m2: 0.0015848183581310526
+    izz_kg_m2: 0.0006255312375807422
+    ixy_kg_m2: 1.1936228930466607e-05
+    ixz_kg_m2: -6.3202794233644e-06
+    iyz_kg_m2: -8.155701196213491e-05
+  visual_mesh: left_shin_link
+  collision:
+    primitives:
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.0
+        - 0.0425
+        - 0.1275
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.0285
+      - 0.0025
+      - 0.10597
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.0
+        - -0.0425
+        - 0.1275
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.0285
+      - 0.0025
+      - 0.10597
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.0
+        - 0.014
+        - 0.12
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.02847
+      - 0.026
+      - 0.0285
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.007035
+        - -0.0255
+        - 0.119995
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.021465
+      - 0.0145
+      - 0.028495
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.0
+        - 0.0
+        - 0.0295
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.021
+      - 0.04
+      - 0.0415
+    mesh: null
+- name: left_foot_link
+  parent_joint: left_ankle_pitch_joint
+  mass_kg: 0.09548609762474164
+  com_m:
+  - 0.0108015884
+  - -0.0001869328
+  - -0.0185307623
+  inertia:
+    ixx_kg_m2: 3.070209793393052e-05
+    iyy_kg_m2: 0.0001918040091633922
+    izz_kg_m2: 0.00020786295753295626
+    ixy_kg_m2: -9.976287613138543e-07
+    ixz_kg_m2: 1.1298655925701284e-05
+    iyz_kg_m2: 4.1254741383926593e-07
+  visual_mesh: left_foot_link
+  collision:
+    primitives:
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.02
+        - 0.0
+        - -0.023
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.08
+      - 0.03
+      - 0.003
+    - shape: box
+      frame:
+        xyz_m:
+        - 0.0
+        - 0.0009
+        - -0.006
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.01073
+      - 0.0229
+      - 0.014
+    - shape: box
+      frame:
+        xyz_m:
+        - -0.04
+        - -0.003735
+        - -0.006
+        rpy_rad:
+        - 0.0
+        - 0.0
+        - 0.0
+      dimensions_m:
+      - 0.01073
+      - 0.014865
+      - 0.014
+    mesh: null
+- name: left_ankle_horn_link
+  parent_joint: left_ankle_motor_joint
+  mass_kg: 0.01330685925231839
+  com_m:
+  - -0.0221155383
+  - -0.0006746517
+  - -5.12132e-05
+  inertia:
+    ixx_kg_m2: 9.917366361850588e-07
+    iyy_kg_m2: 6.439338582840315e-06
+    izz_kg_m2: 5.837653492464466e-06
+    ixy_kg_m2: 4.94948973666846e-07
+    ixz_kg_m2: -1.1221812520682527e-08
+    iyz_kg_m2: 1.1461597328481077e-09
+  visual_mesh: left_ankle_horn_link
+  collision:
+    primitives:
+    - shape: cylinder
+      frame:
+        xyz_m:
+        - 0.0
+        - -0.0023
+        - 0.0
+        rpy_rad:
+        - -1.570796326795
+        - 1.568480618023
+        - 0.0
+      dimensions_m:
+      - 0.0175
+      - 0.0023
+    - shape: box
+      frame:
+        xyz_m:
+        - -0.0174999531
+        - -0.0023
+        - -4.05249e-05
+        rpy_rad:
+        - -1.570796326795
+        - 1.568480618023
+        - 0.0
+      dimensions_m:
+      - 0.0084
+      - 0.0175
+      - 0.0023
+    - shape: box
+      frame:
+        xyz_m:
+        - -0.045499878
+        - 0.0039
+        - -0.0001053647
+        rpy_rad:
+        - -1.570796326795
+        - 1.568480618023
+        - 0.0
+      dimensions_m:
+      - 0.01088
+      - 0.0105
+      - 0.0085
+    mesh: null
+- name: left_ankle_rod_link
+  parent_joint: left_ankle_rod_joint
+  mass_kg: 0.009590323634738092
+  com_m:
+  - -0.0084255138
+  - 0.0
+  - 0.059700789
+  inertia:
+    ixx_kg_m2: 1.4051004787656125e-05
+    iyy_kg_m2: 1.437181133736455e-05
+    izz_kg_m2: 3.607662315198276e-07
+    ixy_kg_m2: -3.6510816616758883e-22
+    ixz_kg_m2: 5.719032255269728e-07
+    iyz_kg_m2: 5.330101770769443e-21
+  visual_mesh: left_ankle_rod_link
+  collision:
+    primitives:
+    - shape: box
+      frame:
+        xyz_m:
+        - -0.0049977687
+        - 0.0
+        - 0.0598437325
+        rpy_rad:
+        - -0.041677726308
+        - 0.0
+        - 1.570796326795
+      dimensions_m:
+      - 0.0025
+      - 0.0135
+      - 0.071
+    mesh: null
+joints:
+- name: left_ankle_pitch_joint
+  type: revolute
+  parent_link: left_shin_link
+  child_link: left_foot_link
+  origin:
+    xyz_m:
+    - 0.0
+    - 0.0
+    - 0.0
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  limits:
+    hard_stop_lower_rad: -1.2217
+    hard_stop_upper_rad: 0.7679
+    software_lower_rad: -0.6981
+    software_upper_rad: 0.6981
+    velocity_rad_s: 10.0
+    effort_continuous_nm: 2.5
+    effort_peak_nm: 2.5
+    effort_peak_duration_s: 1.0
+  transmission:
+    direction_sign: null
+    friction_coulomb_nm: 0.0
+    friction_viscous_nm_s_rad: 0.0
+    armature_kg_m2: 0.0
+  calibration:
+    zero_offset_rad: null
+  actuator: null
+- name: left_ankle_motor_joint
+  type: revolute
+  parent_link: left_shin_link
+  child_link: left_ankle_horn_link
+  origin:
+    xyz_m:
+    - 0.0
+    - -0.012
+    - 0.12
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  limits: null
+  transmission:
+    direction_sign: 1
+    friction_coulomb_nm: 0.0
+    friction_viscous_nm_s_rad: 0.0
+    armature_kg_m2: 0.002
+  calibration:
+    zero_offset_rad: null
+  actuator: left_ankle_motor
+- name: left_ankle_rod_joint
+  type: revolute
+  parent_link: left_foot_link
+  child_link: left_ankle_rod_link
+  origin:
+    xyz_m:
+    - -0.04
+    - -0.0091
+    - 0.0
+    rpy_rad:
+    - 0.0
+    - 0.0
+    - 0.0
+  axis:
+  - 0.0
+  - 1.0
+  - 0.0
+  limits: null
+  transmission:
+    direction_sign: null
+    friction_coulomb_nm: 0.0
+    friction_viscous_nm_s_rad: 0.0
+    armature_kg_m2: 0.0
+  calibration:
+    zero_offset_rad: null
+  actuator: null
+actuators:
+- name: left_ankle_motor
+  motor_class: RS02
+  bus_segment: slave0
+  can_node_id: 1
+  slot: 0
+  default_kp: 15.0
+  default_kd: 1.0
+linkages:
+- name: left_ankle_pitch_linkage
+  type: planar_four_bar
+  input_joint: left_ankle_motor_joint
+  output_joint: left_ankle_pitch_joint
+  coupler_joint: left_ankle_rod_joint
+  closure:
+    coupler_point_m:
+    - -0.0049998793
+    - 0.0
+    - 0.1198957932
+    input_point_m:
+    - -0.0449998793
+    - 0.0029
+    - -0.0001042068
